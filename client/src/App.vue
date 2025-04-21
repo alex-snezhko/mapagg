@@ -5,7 +5,8 @@ import Map from "./components/Map.vue";
 <template>
   <nav>
     <RouterLink to="/">Home</RouterLink>
-    <RouterLink to="/add-map">Add Map</RouterLink>
+    <RouterLink to="/add-map/choropleth">Add Map</RouterLink>
+    <RouterLink to="/add-map/points-of-interest">Add Map Points of Interest</RouterLink>
   </nav>
 
   <main>

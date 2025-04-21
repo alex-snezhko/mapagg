@@ -1,19 +1,22 @@
 <script setup lang="ts">
-import type { AggregateDataRequest, AggregateDataTag, MapResponse } from '@/types';
+import type { AggregationInputs, MapResponse } from '@/types';
 import { debounce } from '@/util';
 import L from 'leaflet';
-import 'leaflet.heat';
 import 'leaflet/dist/leaflet.css'
 import { onMounted, watch } from 'vue';
 
 interface Props {
-  tags: AggregateDataTag[];
+  inputs: AggregationInputs;
 }
 
 const props = defineProps<Props>();
 
-const debouncedWatcher = debounce((map: L.Map, tags: AggregateDataTag[]) => {
-  hydrateHeatmap(map, tags)
+const emit = defineEmits<{
+  loadingChange: [val: boolean];
+}>();
+
+const debouncedWatcher = debounce((map: L.Map, inputs: AggregationInputs) => {
+  hydrateHeatmap(map, inputs)
 }, 1000)
 
 onMounted(() => {
@@ -27,9 +30,8 @@ onMounted(() => {
 
   CartoDB_Positron.addTo(map);
 
-  watch(() => props.tags, (newTags, oldTags) => {
-    console.log("Here", !!map, newTags, oldTags)
-    if (oldTags.length === 0) {
+  watch(() => props.inputs, (newTags, oldTags) => {
+    if (oldTags.tags.length === 0) {
       hydrateHeatmap(map, newTags)
     } else {
       debouncedWatcher(map, newTags);
@@ -39,8 +41,13 @@ onMounted(() => {
 
 let layer: any;
 
-async function hydrateHeatmap(map: L.Map, tags: AggregateDataTag[]) {
-  const req: AggregateDataRequest = { tags: tags.filter(t => Number.isFinite(t.weight)) };
+async function hydrateHeatmap(map: L.Map, inputs: AggregationInputs) {
+  const req: AggregationInputs = {
+    ...inputs,
+    tags: inputs.tags.filter(t => Number.isFinite(t.weight))
+  };
+
+  emit("loadingChange", true);
 
   const mapRes = await fetch("http://localhost:8080/aggregate-data", {
     method: "POST",
@@ -52,9 +59,8 @@ async function hydrateHeatmap(map: L.Map, tags: AggregateDataTag[]) {
     return;
   }
 
-  const dx = 0.003250541237113416;
-  const dy = 0.0024469734042552854;
-  const fs = mapResponse.data.map(([lat, long, val], i) => ({
+  const { gapX, gapY } = mapResponse.data;
+  const fs = mapResponse.data.data.map(([lat, long, val], i) => ({
     type: "Feature",
     id: i.toString(),
     properties: {
@@ -64,10 +70,10 @@ async function hydrateHeatmap(map: L.Map, tags: AggregateDataTag[]) {
       type: "Polygon",
       coordinates: [
         [
-          [long - dx, lat - dy],
-          [long - dx, lat],
+          [long - gapX, lat - gapY],
+          [long - gapX, lat],
           [long, lat],
-          [long, lat - dy],
+          [long, lat - gapY],
         ]
       ]
     }
@@ -91,6 +97,8 @@ async function hydrateHeatmap(map: L.Map, tags: AggregateDataTag[]) {
   });
   
   layer.addTo(map);
+
+  emit("loadingChange", false);
 }
 
 function color(val: number) {

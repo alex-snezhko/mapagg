@@ -1,13 +1,12 @@
 <script setup lang="ts">
+import type { LegendItem, SubmitChoroplethMapRequest } from '@/types';
 import { onMounted, onUnmounted, reactive, ref, useTemplateRef, watch, watchEffect } from 'vue';
 import { useRouter } from 'vue-router';
 
 type EditingAction = "defineBounds" | "selectLegend"
 type Action = "editing" | "confirming"
-interface LegendItem {
+interface LegendItemWithId extends LegendItem {
   id: number;
-  color: readonly [number, number, number, number] | null;
-  value: number | null;
 }
 
 const targetHeight = 800;
@@ -29,7 +28,7 @@ const completedActions = reactive<Record<EditingAction, boolean>>({
 const computedMapSrc = ref("");
 
 const overlayData = reactive({ x: 0, y: 0, scale: 1 });
-const legend = reactive<{ items: LegendItem[]; colorTolerance: number }>({
+const legend = reactive<{ items: LegendItemWithId[]; colorTolerance: number }>({
   items: [],
   colorTolerance: 10,
 });
@@ -105,8 +104,6 @@ function endDrag() {
 }
 
 function selectImage(event: Event) {
-  console.log(event)
-
   const elem = event.target as HTMLInputElement;
   if (!elem.files) {
     return;
@@ -203,9 +200,7 @@ async function submitData() {
 
   const overlayAspectRatio = overlayImageBounds.width / overlayImageBounds.height;
 
-  const formData = new FormData();
-  formData.append("file", selectedImage);
-  formData.append("data", JSON.stringify({
+  const data: SubmitChoroplethMapRequest = {
     tag: fileTag.value,
     overlayLocTopLeftX: Math.floor(overlayData.x * imageScale),
     overlayLocTopLeftY: Math.floor(overlayData.y * imageScale),
@@ -213,9 +208,13 @@ async function submitData() {
     overlayLocBottomRightY: Math.floor((overlayData.y + targetHeight * overlayData.scale) * imageScale),
     colorTolerance: legend.colorTolerance,
     legend: legend.items,
-  }));
+  };
 
-  const res = await fetch("http://localhost:8080/submit-map", {
+  const formData = new FormData();
+  formData.append("file", selectedImage);
+  formData.append("data", JSON.stringify(data));
+
+  const res = await fetch("http://localhost:8080/submit-choropleth-map", {
     method: "POST",
     body: formData,
   });

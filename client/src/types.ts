@@ -6,15 +6,36 @@ export type Response<T> = {
   error: string;
 }
 
+export interface LegendItem {
+  color: readonly [number, number, number, number] | null;
+  value: number | null;
+}
+
+export interface SubmitChoroplethMapRequest {
+  tag: string;
+  overlayLocTopLeftX: number;
+  overlayLocTopLeftY: number;
+  overlayLocBottomRightX: number;
+  overlayLocBottomRightY: number;
+  colorTolerance: number;
+  legend: LegendItem[];
+}
+
+export interface MapAggregation {
+  data: [number, number, number][];
+  gapY: number;
+  gapX: number;
+}
+
 export type TagsResponse = Response<string[]>;
-export type MapResponse = Response<[number, number, number][]>;
+export type MapResponse = Response<MapAggregation>;
 
 export interface AggregateDataTag {
   tag: string;
   weight: number;
 }
 
-export interface AggregateDataRequest {
+export interface AggregationInputs {
   tags: AggregateDataTag[];
+  samplingRate: number;
 }
-

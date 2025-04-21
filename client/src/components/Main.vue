@@ -2,15 +2,34 @@
 import { onMounted, reactive, ref, watch } from "vue";
 import Map from "./Map.vue";
 import Selectors from "./Selectors.vue";
-import type { AggregateDataTag, TagsResponse } from "@/types";
+import type { AggregateDataTag, AggregationInputs, TagsResponse } from "@/types";
 
-const tags = ref<AggregateDataTag[]>([]);
-
-onMounted(() => {
-  getTags();
+const inputs = reactive<AggregationInputs>({
+  samplingRate: 10,
+  tags: []
 });
 
-async function getTags() {
+const isLoading = ref(false);
+
+onMounted(() => {
+  let exitingInputValues: AggregationInputs | null = null;
+  const inpsValue = localStorage.getItem("inputs");
+  if (inpsValue) {
+    exitingInputValues = JSON.parse(inpsValue) as AggregationInputs;
+  }
+
+  if (exitingInputValues) {
+    inputs.samplingRate = exitingInputValues.samplingRate;
+  }
+
+  getTags(exitingInputValues?.tags);
+});
+
+watch(inputs, inp => {
+  localStorage.setItem("inputs", JSON.stringify(inp));
+})
+
+async function getTags(existingTagData: AggregateDataTag[] | undefined) {
   const tagsRes = await fetch("http://localhost:8080/tags");
   const tagsResponse = await tagsRes.json() as TagsResponse;
   if (!tagsResponse.success) {
@@ -18,17 +37,19 @@ async function getTags() {
     return;
   }
 
-  tags.value = tagsResponse.data.map(tag => ({ tag, weight: 1 }));
+  inputs.tags = tagsResponse.data.map(tag => ({
+    tag,
+    weight: existingTagData?.find(td => td.tag === tag)?.weight ?? 1
+  }));
 }
 </script>
 
 <template>
   <main>
-    <RouterLink to="/add-map">Add Map</RouterLink>
+    <div v-if="isLoading">Loading...</div>
+    <Selectors v-model="inputs" />
 
-    <Selectors v-model="tags" />
-
-    <Map :tags="tags" />
+    <Map :inputs="inputs" @loading-change="val => isLoading = val" />
   </main>
 </template>
 
