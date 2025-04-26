@@ -24,6 +24,18 @@ func getTags() ([]string, error) {
 func aggregateData(request AggregateDataRequest) (MapAggregationResponse, error) {
 	var response MapAggregationResponse
 
+	overlayFile, err := getOverlayFile()
+	if err != nil {
+		return response, err
+	}
+
+	numPixels := overlayFile.Bounds().Max.Y * overlayFile.Bounds().Max.X
+	maxAllowedSamples := 200_000
+	numSamples := request.SamplingRate * request.SamplingRate
+	if numPixels/numSamples > maxAllowedSamples {
+		return response, fmt.Errorf("requested sampling rate too low and would generate %d samples, exceeding the maximum allowed of %d, please specify higher value", numPixels/numSamples, maxAllowedSamples)
+	}
+
 	dirents, err := os.ReadDir("./database/maps")
 	if err != nil {
 		return response, err

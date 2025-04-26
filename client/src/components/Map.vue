@@ -20,7 +20,9 @@ const debouncedWatcher = debounce((map: L.Map, inputs: AggregationInputs) => {
 }, 1000)
 
 onMounted(() => {
-  const map = L.map('map').setView([40.741, -73.975], 12);
+  const map = L.map('map', { zoomControl: false }).setView([40.741, -73.975], 12);
+
+  L.control.zoom({ position: 'topright' }).addTo(map);
 
   const CartoDB_Positron = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -91,7 +93,7 @@ async function hydrateHeatmap(map: L.Map, inputs: AggregationInputs) {
   layer = L.geoJSON(fc as any, {
     style: (feature) => ({
       stroke: false,
-      fillOpacity: 0.5,
+      fillOpacity: 0.4,
       color: color(feature?.properties.value)
     })
   });
@@ -102,9 +104,6 @@ async function hydrateHeatmap(map: L.Map, inputs: AggregationInputs) {
 }
 
 function color(val: number) {
-  if (val > 1 || val < 0) {
-    console.log("OOps", val)
-  }
   const value = (1 - val) * 255;
   const green = value
   const red = 255 - value;
@@ -126,15 +125,8 @@ function componentValue(component: number) {
 </template>
 
 <style scoped>
-main {
-  width: 100%;
-  height: 100%;
-}
-
 #map {
   width: 100%;
   height: 100%;
-  /* height: 500px;
-  width: 400px; */
 }
 </style>

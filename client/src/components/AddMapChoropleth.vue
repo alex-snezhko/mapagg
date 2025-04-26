@@ -28,9 +28,10 @@ const completedActions = reactive<Record<EditingAction, boolean>>({
 const computedMapSrc = ref("");
 
 const overlayData = reactive({ x: 0, y: 0, scale: 1 });
-const legend = reactive<{ items: LegendItemWithId[]; colorTolerance: number }>({
+const legend = reactive<{ items: LegendItemWithId[]; colorTolerance: number; borderTolerance: number; }>({
   items: [],
   colorTolerance: 10,
+  borderTolerance: 3,
 });
 const fileTag = ref("");
 
@@ -69,7 +70,6 @@ watch(refImageCanvas, canvasElem => {
     const canvasContext = canvasElem.getContext('2d')!;
 
     const canvasImg = new Image();
-    console.log(imageSelectedSrc.value);
     canvasImg.src = imageSelectedSrc.value!;
 
     canvasImg.onload = () => {
@@ -138,8 +138,6 @@ function removeLegendKey(id: number) {
 }
 
 function selectPixel(event: MouseEvent) {
-  console.log(event);
-
   const canvasElem = (event.target as HTMLCanvasElement);
 
   const canvasBounds = canvasElem.getBoundingClientRect();
@@ -163,8 +161,7 @@ function hexColor(color: readonly [number, number, number, number]): string {
     return str;
   }
 
-  const a = `#${componentValue(color[0])}${componentValue(color[1])}${componentValue(color[2])}`;
-  return a;
+  return `#${componentValue(color[0])}${componentValue(color[1])}${componentValue(color[2])}`;
 }
 
 function confirmOverlay() {
@@ -207,6 +204,7 @@ async function submitData() {
     overlayLocBottomRightX: Math.floor((overlayData.x + targetHeight * overlayAspectRatio * overlayData.scale) * imageScale),
     overlayLocBottomRightY: Math.floor((overlayData.y + targetHeight * overlayData.scale) * imageScale),
     colorTolerance: legend.colorTolerance,
+    borderTolerance: legend.borderTolerance,
     legend: legend.items,
   };
 
@@ -306,6 +304,9 @@ async function confirmMap() {
 
         <label for="colorTolerance">Color Tolerance</label>
         <input v-model="legend.colorTolerance" type="number" name="colorTolerance" />
+
+        <label for="borderTolerance">Border Tolerance</label>
+        <input v-model="legend.borderTolerance" type="number" name="borderTolerance" />
 
         <button @click="addLegendKey">Add Legend Key</button>
 

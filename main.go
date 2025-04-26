@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
-	"image/color"
 	"image/png"
 	"io"
 	"mime/multipart"
@@ -37,6 +36,7 @@ type SubmitChoroplethMapData struct {
 	OverlayLocBottomRightX int          `json:"overlayLocBottomRightX"`
 	OverlayLocBottomRightY int          `json:"overlayLocBottomRightY"`
 	ColorTolerance         int          `json:"colorTolerance"`
+	BorderTolerance        int          `json:"borderTolerance"`
 	Legend                 []LegendItem `json:"legend"`
 }
 
@@ -251,8 +251,4 @@ func confirmMap(submittedFile multipart.File, data ConfirmMapData) error {
 	}
 
 	return nil
-}
-
-func valueColor(value float64) color.Color {
-	return color.RGBA{R: 0, G: uint8(value * 255), B: 0, A: 255}
 }

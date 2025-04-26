@@ -45,22 +45,38 @@ async function getTags(existingTagData: AggregateDataTag[] | undefined) {
 </script>
 
 <template>
-  <main>
-    <div v-if="isLoading">Loading...</div>
-    <Selectors v-model="inputs" />
+  <div class="map-container">
+    <img src="/assets/loading_spinner.svg" v-if="isLoading" class="loading-spinner" />
+    <Selectors v-model="inputs" class="selectors-box" />
 
-    <Map :inputs="inputs" @loading-change="val => isLoading = val" />
-  </main>
+    <Map :inputs="inputs" class="aggregate-map" @loading-change="val => isLoading = val" />
+  </div>
 </template>
 
-<style scoped>
-main {
+<style lang="scss" scoped>
+.map-container {
   width: 100%;
   height: 100%;
+
+  position: relative;
 }
 
-#map {
-  width: 100%;
-  height: 100%;
+.loading-spinner {
+  z-index: 10;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.selectors-box {
+  position: absolute;
+  z-index: 10;
+  top: 8px;
+  left: 8px;
+}
+
+.aggregate-map {
+  z-index: 0;
 }
 </style>

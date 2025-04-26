@@ -18,6 +18,7 @@ export interface SubmitChoroplethMapRequest {
   overlayLocBottomRightX: number;
   overlayLocBottomRightY: number;
   colorTolerance: number;
+  borderTolerance: number;
   legend: LegendItem[];
 }
 
