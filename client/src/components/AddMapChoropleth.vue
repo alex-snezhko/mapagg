@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { LegendItem, SubmitChoroplethMapRequest } from '@/types';
-import { onMounted, onUnmounted, reactive, ref, useTemplateRef, watch, watchEffect } from 'vue';
+import { onMounted, onUnmounted, reactive, ref, useTemplateRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import AddMapLayout from './AddMapLayout.vue';
+import type { MapPreviewState } from './MapPreview.vue';
 
 type EditingAction = "defineBounds" | "selectLegend"
 type Action = "editing" | "confirming"
@@ -14,18 +16,15 @@ const targetHeight = 800;
 let selectedImage: File;
 let selectedImageBounds: { width: number; height: number; };
 let overlayImageBounds: { width: number; height: number; };
-let computedImageBlob: Blob;
 const imageSelectedSrc = ref<string | null>(null)
 const selectingColorId = ref<number | null>(null);
 const isDragging = ref(false);
 const selectedEditingAction = ref<EditingAction>("defineBounds");
-const selectedAction = ref<Action>("editing");
+const mapPreviewState = ref<MapPreviewState>({ state: "init" });
 const completedActions = reactive<Record<EditingAction, boolean>>({
   defineBounds: false,
   selectLegend: false
 });
-
-const computedMapSrc = ref("");
 
 const overlayData = reactive({ x: 0, y: 0, scale: 1 });
 const legend = reactive<{ items: LegendItemWithId[]; colorTolerance: number; borderTolerance: number; }>({
@@ -33,7 +32,7 @@ const legend = reactive<{ items: LegendItemWithId[]; colorTolerance: number; bor
   colorTolerance: 10,
   borderTolerance: 3,
 });
-const fileTag = ref("");
+const tag = ref("");
 
 const refImage = useTemplateRef("ref-img");
 const overlayImage = useTemplateRef("overlay-img");
@@ -188,7 +187,7 @@ async function submitData() {
     return;
   }
 
-  if (!fileTag.value) {
+  if (!tag.value) {
     alert("Missing file tag");
     return;
   }
@@ -198,7 +197,7 @@ async function submitData() {
   const overlayAspectRatio = overlayImageBounds.width / overlayImageBounds.height;
 
   const data: SubmitChoroplethMapRequest = {
-    tag: fileTag.value,
+    tag: tag.value,
     overlayLocTopLeftX: Math.floor(overlayData.x * imageScale),
     overlayLocTopLeftY: Math.floor(overlayData.y * imageScale),
     overlayLocBottomRightX: Math.floor((overlayData.x + targetHeight * overlayAspectRatio * overlayData.scale) * imageScale),
@@ -212,49 +211,36 @@ async function submitData() {
   formData.append("file", selectedImage);
   formData.append("data", JSON.stringify(data));
 
+  mapPreviewState.value = { state: "loading" };
+
   const res = await fetch("http://localhost:8080/submit-choropleth-map", {
     method: "POST",
     body: formData,
   });
 
-  computedImageBlob = await res.blob();
-  selectedAction.value = 'confirming';
-  computedMapSrc.value = URL.createObjectURL(computedImageBlob);
+  const computedImageBlob = await res.blob();
+  mapPreviewState.value = {
+    state: "present",
+    computedImageBlob,
+    computedMapSrc: URL.createObjectURL(computedImageBlob),
+    tag: tag.value
+  };
 }
-
-async function confirmMap() {
-  if (!fileTag.value) {
-    alert("Missing file tag");
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("file", computedImageBlob);
-  formData.append("data", JSON.stringify({
-    tag: fileTag.value,
-  }));
-
-  const res = await fetch("http://localhost:8080/confirm-map", {
-    method: "POST",
-    body: formData,
-  });
-
-  if (res.ok) {
-    router.push({ path: "/" });
-  }
-}
-
 </script>
 
 <template>
-  <label for="map">Choose Map</label>
-  <input type="file" id="map" name="map" accept="image/png" @input="selectImage" />
+  <AddMapLayout name="Choropleth" :map-preview-state="mapPreviewState">
+    <div class="form-field">
+      <label for="tag">Tag</label>
+      <input type="text" v-model="tag" name="tag" />
+    </div>
 
-  <label for="tag">File Tag</label>
-  <input v-model="fileTag" name="tag" />
+    <div class="form-field">
+      <label for="map">Choose Map</label>
+      <input type="file" id="map" name="map" accept="image/png" @input="selectImage" />
+    </div>
 
-  <div v-if="!!imageSelectedSrc">
-    <div v-if="selectedAction === 'editing'">
+    <div v-if="!!imageSelectedSrc">
       <button
         @click="selectedEditingAction = 'defineBounds'"
         :class="{ 'active-button': selectedEditingAction === 'defineBounds' }"
@@ -276,13 +262,13 @@ async function confirmMap() {
 
         <form @submit.prevent="confirmOverlay">
           <label for="xOffset">X</label>
-          <input v-model="overlayData.x" type="number" name="xOffset" />
+          <input type="number" v-model="overlayData.x" name="xOffset" />
 
           <label for="yOffset">Y</label>
-          <input v-model="overlayData.y" type="number" name="yOffset" />
+          <input type="number" v-model="overlayData.y" name="yOffset" />
 
           <label for="scale">Scale</label>
-          <input v-model="overlayData.scale" type="number" name="scale" step="any" />
+          <input type="number" v-model="overlayData.scale" name="scale" step="any" />
 
           <input type="submit" value="Submit" />
         </form>
@@ -301,12 +287,11 @@ async function confirmMap() {
         </div>
       </div>
       <div v-else-if="selectedEditingAction === 'selectLegend'">
-
         <label for="colorTolerance">Color Tolerance</label>
-        <input v-model="legend.colorTolerance" type="number" name="colorTolerance" />
+        <input type="number" v-model="legend.colorTolerance" name="colorTolerance" />
 
         <label for="borderTolerance">Border Tolerance</label>
-        <input v-model="legend.borderTolerance" type="number" name="borderTolerance" />
+        <input type="number" v-model="legend.borderTolerance" name="borderTolerance" />
 
         <button @click="addLegendKey">Add Legend Key</button>
 
@@ -336,18 +321,12 @@ async function confirmMap() {
         </div>
       </div>
     </div>
-    <div v-else-if="selectedAction === 'confirming'">
-      Does this look accurate?
-
-      <img class="ref-img" :src="computedMapSrc" />
-
-      <button @click="confirmMap">Yes</button>
-      <button @click="selectedAction = 'editing'">No</button>
-    </div>
-  </div>
+  </AddMapLayout>
 </template>
 
 <style lang="scss" scoped>
+@import "../styles/shared.scss";
+
 .active-button {
   color: white;
   background-color: gray;

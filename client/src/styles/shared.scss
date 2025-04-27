@@ -1,0 +1,48 @@
+@mixin submit-button {
+  width: 100%;
+  margin-top: 20px;
+  // background-color: #25aa25;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  box-shadow: 0px 2px 2px #ddd;
+  cursor: pointer;
+  color: white;
+  font-weight: bold;
+  font-size: 1.125em;
+}
+
+.form-field {
+  font-size: 1.125em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  input[type=text] {
+    font-size: 0.875em;
+    width: 250px;
+    padding: 6px 10px;
+    border: 1px solid #bbb;
+    background-color: #fafafa;
+    border-radius: 4px;
+    box-shadow: 0px 2px 3px #eee;
+  }
+
+  input[type=file] {
+    width: 250px;
+    &::file-selector-button {
+      padding: 2px 6px;
+      font-size: 1.125em;
+      background-color: #f0f0f0;
+      border: 1px solid #bbb;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-family: 'Inter', -apple-system, sans-serif;
+      box-shadow: 0px 2px 3px #eee;
+
+      &:hover {
+        background-color: #e7e7e7;
+      }
+    }
+  }
+}

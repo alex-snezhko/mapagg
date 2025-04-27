@@ -19,6 +19,7 @@ nav {
   background-color: black;
   padding: 10px 20px;
   display: flex;
+  align-items: center;
   gap: 40px;
 
   a {

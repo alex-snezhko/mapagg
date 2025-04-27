@@ -28,7 +28,6 @@ const props = defineProps<Props>();
   align-items: center;
   width: 500px;
   gap: 20px;
-
   margin: 80px 0;
 }
 
@@ -37,13 +36,12 @@ const props = defineProps<Props>();
   flex-direction: column;
   align-items: center;
   text-decoration: none;
-  font-size: 1.125em;
   color: black;
-  font-weight: bold;
+  font-weight: 600;
   border: 1px solid lightgray;
   background-color: #f8f8f8;
-  border-radius: 8px;
-  padding: 4px 12px;
+  border-radius: 6px;
+  padding: 8px 12px;
 }
 
 .example-image-container {
