@@ -4,14 +4,14 @@ import { onMounted, onUnmounted, reactive, ref, useTemplateRef, watch } from 'vu
 import { useRouter } from 'vue-router';
 import AddMapLayout from './AddMapLayout.vue';
 import type { MapPreviewState } from './MapPreview.vue';
+import Slider from './Slider.vue';
 
 type EditingAction = "defineBounds" | "selectLegend"
-type Action = "editing" | "confirming"
 interface LegendItemWithId extends LegendItem {
   id: number;
 }
 
-const targetHeight = 800;
+const targetHeight = 640;
 
 let selectedImage: File;
 let selectedImageBounds: { width: number; height: number; };
@@ -26,7 +26,7 @@ const completedActions = reactive<Record<EditingAction, boolean>>({
   selectLegend: false
 });
 
-const overlayData = reactive({ x: 0, y: 0, scale: 1 });
+const overlayData = reactive({ xOffset: 0, yOffset: 0, scale: 1 });
 const legend = reactive<{ items: LegendItemWithId[]; colorTolerance: number; borderTolerance: number; }>({
   items: [],
   colorTolerance: 10,
@@ -82,8 +82,8 @@ watch(refImageCanvas, canvasElem => {
 
 function drag(event: MouseEvent) {
   if (isDragging.value) {
-    overlayData.x += event.movementX;
-    overlayData.y += event.movementY;
+    overlayData.xOffset += event.movementX;
+    overlayData.yOffset += event.movementY;
   }
 }
 
@@ -198,10 +198,10 @@ async function submitData() {
 
   const data: SubmitChoroplethMapRequest = {
     tag: tag.value,
-    overlayLocTopLeftX: Math.floor(overlayData.x * imageScale),
-    overlayLocTopLeftY: Math.floor(overlayData.y * imageScale),
-    overlayLocBottomRightX: Math.floor((overlayData.x + targetHeight * overlayAspectRatio * overlayData.scale) * imageScale),
-    overlayLocBottomRightY: Math.floor((overlayData.y + targetHeight * overlayData.scale) * imageScale),
+    overlayLocTopLeftX: Math.floor(overlayData.xOffset * imageScale),
+    overlayLocTopLeftY: Math.floor(overlayData.yOffset * imageScale),
+    overlayLocBottomRightX: Math.floor((overlayData.xOffset + targetHeight * overlayAspectRatio * overlayData.scale) * imageScale),
+    overlayLocBottomRightY: Math.floor((overlayData.yOffset + targetHeight * overlayData.scale) * imageScale),
     colorTolerance: legend.colorTolerance,
     borderTolerance: legend.borderTolerance,
     legend: legend.items,
@@ -229,21 +229,26 @@ async function submitData() {
 </script>
 
 <template>
-  <AddMapLayout name="Choropleth" :map-preview-state="mapPreviewState">
-    <div class="form-field">
-      <label for="tag">Tag</label>
-      <input type="text" v-model="tag" name="tag" />
-    </div>
+  <AddMapLayout name="Add Choropleth Map Dataset" :map-preview-state="mapPreviewState">
+    <div class="form-fields">
+      <div class="form-field">
+        <label for="tag">Tag</label>
+        <input type="text" v-model="tag" name="tag" />
+      </div>
 
-    <div class="form-field">
-      <label for="map">Choose Map</label>
-      <input type="file" id="map" name="map" accept="image/png" @input="selectImage" />
+      <hr />
+
+      <div class="form-field">
+        <label for="map">Choose Map</label>
+        <input type="file" id="map" name="map" accept="image/png" @input="selectImage" />
+      </div>
     </div>
 
     <div v-if="!!imageSelectedSrc">
       <button
         @click="selectedEditingAction = 'defineBounds'"
-        :class="{ 'active-button': selectedEditingAction === 'defineBounds' }"
+        class="tab-button"
+        :class="{ 'active-tab': selectedEditingAction === 'defineBounds' }"
       >
         Define Bounds
         <span v-if="completedActions.defineBounds">✓</span>
@@ -251,24 +256,31 @@ async function submitData() {
 
       <button
         @click="selectedEditingAction = 'selectLegend'"
-        :class="{ 'active-button': selectedEditingAction === 'selectLegend' }"
+        class="tab-button"
+        :class="{ 'active-tab': selectedEditingAction === 'selectLegend' }"
       >
         Define Legend
         <span v-if="completedActions.selectLegend">✓</span>
       </button>
 
-      <div v-if="selectedEditingAction === 'defineBounds'">
+      <div v-if="selectedEditingAction === 'defineBounds'" class="tab-content">
         <p>Shift + Scroll to adjust overlay size</p>
 
-        <form @submit.prevent="confirmOverlay">
-          <label for="xOffset">X</label>
-          <input type="number" v-model="overlayData.x" name="xOffset" />
+        <form @submit.prevent="confirmOverlay" class="form-fields">
+          <div class="form-field">
+            <label for="xOffset">Overlay X Offset</label>
+            <input type="number" v-model="overlayData.xOffset" name="xOffset" />
+          </div>
 
-          <label for="yOffset">Y</label>
-          <input type="number" v-model="overlayData.y" name="yOffset" />
+          <div class="form-field">
+            <label for="yOffset">Overlay Y Offset</label>
+            <input type="number" v-model="overlayData.yOffset" name="yOffset" />
+          </div>
 
-          <label for="scale">Scale</label>
-          <input type="number" v-model="overlayData.scale" name="scale" step="any" />
+          <div class="form-field">
+            <label for="scale">Overlay Scale</label>
+            <input type="number" v-model="overlayData.scale" name="scale" step="any" />
+          </div>
 
           <input type="submit" value="Submit" />
         </form>
@@ -281,35 +293,58 @@ async function submitData() {
             ref="overlay-img"
             src="http://localhost:8080/assets/blackwhite.png"
             draggable="false"
-            :style="{ left: overlayData.x + 'px', top: overlayData.y + 'px', height: overlayData.scale * targetHeight + 'px' }"
+            :style="{ left: overlayData.xOffset + 'px', top: overlayData.yOffset + 'px', height: overlayData.scale * targetHeight + 'px' }"
             @mousedown="startDrag"
           />
         </div>
       </div>
-      <div v-else-if="selectedEditingAction === 'selectLegend'">
-        <label for="colorTolerance">Color Tolerance</label>
-        <input type="number" v-model="legend.colorTolerance" name="colorTolerance" />
+      <div v-else-if="selectedEditingAction === 'selectLegend'" class="tab-content">
+        <div class="form-fields">
+          <h2>Legend Colors</h2>
 
-        <label for="borderTolerance">Border Tolerance</label>
-        <input type="number" v-model="legend.borderTolerance" name="borderTolerance" />
+          <div
+            v-for="legendItem of legend.items"
+            :key="legendItem.id"
+            class="legend-item"
+            :class="{ 'active-legend-item': legendItem.id === selectingColorId }"
+          >
+            <button class="standard-button select-color-button" @click="selectingColorId = legendItem.id">
+              <span class="select-color-text">
+                Select Color
+              </span>
+              <span
+                class="color-preview"
+                :style="legendItem.color !== null ? { 'background-color': hexColor(legendItem.color) } : { 'border': '1px solid gray' }"
+              >
+                <span v-if="legendItem.color === null" class="unselected-color-question-mark">
+                  ?
+                </span>
+              </span>
+            </button>
 
-        <button @click="addLegendKey">Add Legend Key</button>
-
-        <div v-for="legendItem of legend.items" :key="legendItem.id" :class="{ 'active-legend-item': legendItem.id === selectingColorId }">
-          <button @click="selectingColorId = legendItem.id">
-            Color
-            <div class="color-preview" :style="legendItem.color !== null ? { 'background-color': hexColor(legendItem.color) } : { 'border': '1px solid gray' }">
-
+            <div>
+              <label for="value">Value</label>
+              <input type="number" name="value" v-model="legendItem.value" />
+              <button class="cancel-button" @click="removeLegendKey(legendItem.id)"><span>🗙</span></button>
             </div>
-          </button>
+          </div>
 
-          <label for="value">Value</label>
-          <input type="number" name="value" v-model="legendItem.value" />
+          <button class="standard-button add-legend-key-button" @click="addLegendKey">Add Legend Key</button>
 
-          <button @click="removeLegendKey(legendItem.id)">X</button>
+          <hr />
+
+          <div class="form-field">
+            <label for="colorTolerance">Color Tolerance</label>
+            <input type="number" v-model="legend.colorTolerance" name="colorTolerance" />
+          </div>
+
+          <div class="form-field">
+            <label for="borderTolerance">Border Tolerance</label>
+            <input type="number" v-model="legend.borderTolerance" name="borderTolerance" />
+          </div>
+
+          <button @click="confirmLegend">Submit</button>
         </div>
-
-        <button @click="confirmLegend">Submit</button>
 
         <div class="map-container">
           <canvas
@@ -327,9 +362,36 @@ async function submitData() {
 <style lang="scss" scoped>
 @import "../styles/shared.scss";
 
-.active-button {
-  color: white;
-  background-color: gray;
+.tab-button {
+  padding: 8px 20px;
+  font-size: 1.0625em;
+  font-weight: 500;
+  color: #777;
+  background-color: #f3f3f3;
+  border: 1px solid #bbb;
+  border-radius: 6px 6px 0 0;
+  margin-bottom: -1px;
+}
+
+.tab-button:not(:first-child) {
+  margin-left: -1px;
+}
+
+.active-tab {
+  color: black;
+  background-color: white;
+  border-bottom-color: white;
+}
+
+.tab-content {
+  padding: 20px;
+  border: 1px solid #bbb;
+}
+
+.legend-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .active-legend-item {
@@ -338,32 +400,68 @@ async function submitData() {
 
 .map-container {
   position: relative;
+  overflow: hidden;
 }
 
 .ref-img {
-  height: 800px;
+  height: 640px;
   margin: auto;
   border: 1px solid black;
 }
 
 .ref-canvas {
-  height: 800px;
-  width: 800px;
+  height: 640px;
+  width: 640px;
   display: block;
   margin: auto;
   border: 1px solid black;
 }
 
-.color-preview {
+.select-color-button span {
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  vertical-align: middle;
+}
+
+.select-color-text {
+  font-size: 1.125em;
+}
+
+.color-preview {
+  margin-left: 4px;
+  width: 16px;
+  height: 16px;
+  font-size: 0.875em;
+  position: relative;
+
+  .unselected-color-question-mark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
 }
 
 .overlay-img {
   position: absolute;
   opacity: 0.3;
   border: 1px solid black;
-  // pointer-events: none;
+}
+
+.cancel-button {
+  margin-left: 12px;
+  width: 24px;
+  color: white;
+  background-color: rgb(255, 51, 51);
+  border-radius: 50%;
+  border: none;
+  height: 24px;
+  font-size: 1em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background-color: rgb(224, 0, 0);
+  }
 }
 </style>

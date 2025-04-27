@@ -1,7 +1,6 @@
 @mixin submit-button {
   width: 100%;
   margin-top: 20px;
-  // background-color: #25aa25;
   border: none;
   border-radius: 8px;
   padding: 8px 16px;
@@ -12,37 +11,57 @@
   font-size: 1.125em;
 }
 
+input[type=text], input[type=number] {
+  font-size: 0.875em;
+  padding: 6px 10px;
+  border: 1px solid #bbb;
+  background-color: #fafafa;
+  border-radius: 4px;
+  box-shadow: 0px 2px 3px #eee;
+}
+
+button.standard-button, input[type=file]::file-selector-button {
+  padding: 2px 6px;
+  background-color: #f0f0f0;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: 'Inter', -apple-system, sans-serif;
+  box-shadow: 0px 2px 3px #eee;
+
+  &:hover {
+    background-color: #e7e7e7;
+  }
+}
+
+.form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: auto;
+
+  hr {
+    margin: 10px 0;
+    border: none;
+    border-top: 1px solid #bbb;
+  }
+}
+
 .form-field {
   font-size: 1.125em;
   display: flex;
   justify-content: space-between;
   align-items: center;
 
-  input[type=text] {
-    font-size: 0.875em;
-    width: 250px;
-    padding: 6px 10px;
-    border: 1px solid #bbb;
-    background-color: #fafafa;
-    border-radius: 4px;
-    box-shadow: 0px 2px 3px #eee;
+  input[type=text], input[type=number] {
+    width: 40%;
   }
 
   input[type=file] {
-    width: 250px;
-    &::file-selector-button {
-      padding: 2px 6px;
-      font-size: 1.125em;
-      background-color: #f0f0f0;
-      border: 1px solid #bbb;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-family: 'Inter', -apple-system, sans-serif;
-      box-shadow: 0px 2px 3px #eee;
+    width: 40%;
 
-      &:hover {
-        background-color: #e7e7e7;
-      }
+    &::file-selector-button {
+      font-size: 1.125em;
     }
   }
 }

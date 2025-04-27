@@ -82,15 +82,15 @@ async function confirmMap() {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 600px;
-  width: 600px;
+  height: 640px;
+  width: 640px;
   margin: auto;
   border: 1px solid #bbb;
   border-radius: 4px;
 
   img {
-    max-width: 600px;
-    max-height: 600px;
+    max-width: 640px;
+    max-height: 640px;
   }
 }
 

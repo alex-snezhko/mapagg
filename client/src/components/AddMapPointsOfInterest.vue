@@ -59,37 +59,37 @@ async function submit() {
 
 <template>
   <div class="points-of-interest">
-    <div>
+    <div class="points-of-interest-inputs">
       <h2>Add Points of Interest Proximity Map Dataset</h2>
-      <div class="poi-inputs">
-        <div class="poi-input">
+      <div class="form-fields">
+        <div class="form-field">
           <label for="tag">Tag</label>
-          <input type="text" name="tag" class="text-input" v-model="inputs.tag" />
+          <input type="text" name="tag" v-model="inputs.tag" />
         </div>
 
         <hr />
 
-        <div class="poi-input">
+        <div class="form-field">
           <label for="file">CSV File</label>
-          <input type="file" name="file" class="file-input" accept=".csv" @change="uploadCsv" />
+          <input type="file" name="file" accept=".csv" @change="uploadCsv" />
         </div>
 
-        <div class="poi-input">
+        <div class="form-field">
           <label for="lat-col">Latitude Column</label>
-          <input type="text" name="lat-col" class="text-input" v-model="inputs.latCol" />
+          <input type="text" name="lat-col" v-model="inputs.latCol" />
         </div>
 
-        <div class="poi-input">
+        <div class="form-field">
           <label for="long-col">Longitude Column</label>
-          <input type="text" name="long-col" class="text-input" v-model="inputs.longCol" />
+          <input type="text" name="long-col" v-model="inputs.longCol" />
         </div>
 
-        <div class="poi-input">
+        <div class="form-field">
           <label for="threshold-radius">Min Threshold Radius (Miles)</label>
           <input type="number" step="any" name="threshold-radius" class="text-input" v-model="inputs.minThresholdRadiusMiles" />
         </div>
 
-        <div class="poi-input">
+        <div class="form-field">
           <label for="decrease-rate">Max Threshold Radius (Miles)</label>
           <input type="number" step="any" name="decrease-rate" class="text-input" v-model="inputs.maxThresholdRadiusMiles" />
         </div>
@@ -110,7 +110,7 @@ async function submit() {
 </template>
 
 <style lang="scss" scoped>
-@use "../styles/shared.scss";
+@import "../styles/shared.scss";
 
 .points-of-interest {
   display: flex;
@@ -121,63 +121,18 @@ async function submit() {
   align-items: center;
 }
 
+.points-of-interest-inputs {
+  width: 600px;
+}
+
 h2 {
   text-align: center;
   padding-bottom: 40px;
   font-weight: bold;
 }
 
-.poi-inputs {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin: auto;
-  width: 600px;
-
-  hr {
-    margin: 10px 0;
-    border: none;
-    border-top: 1px solid #bbb;
-  }
-}
-
-.poi-input {
-  font-size: 1.125em;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .submit-button {
-  @include shared.submit-button;
+  @include submit-button;
   background-color: #1775b3;
-}
-
-.text-input {
-  font-size: 0.875em;
-  width: 250px;
-  padding: 6px 10px;
-  border: 1px solid #bbb;
-  background-color: #fafafa;
-  border-radius: 4px;
-  box-shadow: 0px 2px 3px #eee;
-}
-
-.file-input {
-  width: 250px;
-  &::file-selector-button {
-    padding: 2px 6px;
-    font-size: 1.125em;
-    background-color: #f0f0f0;
-    border: 1px solid #bbb;
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-family: 'Inter', -apple-system, sans-serif;
-    box-shadow: 0px 2px 3px #eee;
-
-    &:hover {
-      background-color: #e7e7e7;
-    }
-  }
 }
 </style>
