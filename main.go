@@ -198,6 +198,11 @@ func main() {
 		respond(c, results, err)
 	})
 
+	r.GET("/overlay-bounds", func(c *gin.Context) {
+		result, err := getOverlayBounds()
+		respond(c, result, err)
+	})
+
 	r.POST("/aggregate-data", func(c *gin.Context) {
 		body := AggregateDataRequest{}
 		if err := c.BindJSON(&body); err != nil {
@@ -251,4 +256,18 @@ func confirmMap(submittedFile multipart.File, data ConfirmMapData) error {
 	}
 
 	return nil
+}
+
+func getTags() ([]string, error) {
+	dirents, err := os.ReadDir("./database/maps")
+	if err != nil {
+		return nil, err
+	}
+
+	tags := []string{}
+	for _, dirent := range dirents {
+		tags = append(tags, stripExtension(dirent.Name()))
+	}
+
+	return tags, nil
 }

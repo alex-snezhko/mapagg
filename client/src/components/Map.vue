@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AggregationInputs, MapResponse } from '@/types';
+import type { AggregationInputs, MapResponse, OverlayBounds, OverlayBoundsResponse } from '@/types';
 import { debounce } from '@/util';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css'
@@ -19,8 +19,20 @@ const debouncedWatcher = debounce((map: L.Map, inputs: AggregationInputs) => {
   hydrateHeatmap(map, inputs)
 }, 1000)
 
-onMounted(() => {
-  const map = L.map('map', { zoomControl: false }).setView([40.741, -73.975], 12);
+onMounted(async () => {
+  const overlayBoundsRes = await fetch("http://localhost:8080/overlay-bounds");
+  const overlayBounds = await overlayBoundsRes.json() as OverlayBoundsResponse;
+  if (!overlayBounds.success) {
+    alert("Failed to get overlay bounds");
+    return;
+  }
+
+  const centerLat = (overlayBounds.data.bottomRight.lat + overlayBounds.data.topLeft.lat) / 2;
+  const centerLong = (overlayBounds.data.bottomRight.long + overlayBounds.data.topLeft.long) / 2;
+  const zoom = (overlayBounds.data.bottomRight.long - overlayBounds.data.topLeft.long) * 18;
+  console.log(zoom)
+
+  const map = L.map('map', { zoomControl: false }).setView([centerLat, centerLong], zoom);
 
   L.control.zoom({ position: 'topright' }).addTo(map);
 

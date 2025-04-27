@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { AggregationInputs } from '@/types';
+import Slider from './Slider.vue';
+import { ref } from 'vue';
 
 const model = defineModel<AggregationInputs>({ required: true });
 
@@ -14,8 +16,8 @@ const model = defineModel<AggregationInputs>({ required: true });
     <div class="tag-values">
       <h2>Tag Values</h2>
       <div v-for="(tag, i) of model.tags" :key="tag.tag" class="input-value">
-        <label :for="tag.tag">{{ tag.tag }}</label>
-        <input type="number" :name="tag.tag" v-model="model.tags[i].weight" />
+        <label>{{ tag.tag }}</label>
+        <Slider v-model="model.tags[i].weight" />
       </div>
     </div>
   </div>
@@ -41,6 +43,7 @@ const model = defineModel<AggregationInputs>({ required: true });
 .input-value {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   color: white;
 
   input {

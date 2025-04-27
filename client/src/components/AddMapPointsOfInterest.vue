@@ -51,35 +51,37 @@ async function submit() {
 </script>
 
 <template>
-  <input type="file" name="Choose CSV Sheet" accept=".csv" @change="uploadCsv" />
-
   <div>
-    <label for="tag">Tag</label>
-    <input type="text" name="tag" v-model="inputs.tag" />
-  </div>
+    <div>
+      <label for="tag">Tag</label>
+      <input type="text" name="tag" v-model="inputs.tag" />
+    </div>
 
-  <div>
-    <label for="lat-col">Latitude Column</label>
-    <input type="text" name="lat-col" v-model="inputs.latCol" />
-  </div>
+    <input type="file" name="Choose CSV Sheet" accept=".csv" @change="uploadCsv" />
 
-  <div>
-    <label for="long-col">Longitude Column</label>
-    <input type="text" name="long-col" v-model="inputs.longCol" />
-  </div>
+    <div>
+      <label for="lat-col">Latitude Column</label>
+      <input type="text" name="lat-col" v-model="inputs.latCol" />
+    </div>
 
-  <div>
-    <label for="threshold-radius">Min Threshold Radius (Miles)</label>
-    <input type="number" step="any" name="threshold-radius" v-model="inputs.minThresholdRadiusMiles" />
-  </div>
+    <div>
+      <label for="long-col">Longitude Column</label>
+      <input type="text" name="long-col" v-model="inputs.longCol" />
+    </div>
 
-  <div>
-    <label for="decrease-rate">Max Threshold Radius (Miles)</label>
-    <input type="number" step="any" name="decrease-rate" v-model="inputs.maxThresholdRadiusMiles" />
-  </div>
+    <div>
+      <label for="threshold-radius">Min Threshold Radius (Miles)</label>
+      <input type="number" step="any" name="threshold-radius" v-model="inputs.minThresholdRadiusMiles" />
+    </div>
 
-  <div>
-    <input type="button" :value="fileBlobSrc ? 'Update' : 'Submit'" @click="submit" />
+    <div>
+      <label for="decrease-rate">Max Threshold Radius (Miles)</label>
+      <input type="number" step="any" name="decrease-rate" v-model="inputs.maxThresholdRadiusMiles" />
+    </div>
+
+    <div>
+      <input type="button" :value="fileBlobSrc ? 'Update' : 'Submit'" @click="submit" />
+    </div>
   </div>
 
   <MapConfirmation :computed-image-blob="fileBlob" :computed-map-src="fileBlobSrc" :tag="inputs.tag" />

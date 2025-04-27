@@ -2,96 +2,35 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"image/png"
 	"os"
 	"sync"
 )
 
-func getTags() ([]string, error) {
-	dirents, err := os.ReadDir("./database/maps")
-	if err != nil {
-		return nil, err
-	}
-
-	tags := []string{}
-	for _, dirent := range dirents {
-		tags = append(tags, stripExtension(dirent.Name()))
-	}
-
-	return tags, nil
-}
-
 func aggregateData(request AggregateDataRequest) (MapAggregationResponse, error) {
 	var response MapAggregationResponse
 
-	overlayFile, err := getOverlayFile()
+	overlayImg, overlayLatLongBounds, err := getOverlayData()
 	if err != nil {
 		return response, err
 	}
 
-	numPixels := overlayFile.Bounds().Max.Y * overlayFile.Bounds().Max.X
+	numPixels := overlayImg.Bounds().Max.Y * overlayImg.Bounds().Max.X
 	maxAllowedSamples := 200_000
 	numSamples := request.SamplingRate * request.SamplingRate
 	if numPixels/numSamples > maxAllowedSamples {
 		return response, fmt.Errorf("requested sampling rate too low and would generate %d samples, exceeding the maximum allowed of %d, please specify higher value", numPixels/numSamples, maxAllowedSamples)
 	}
 
-	dirents, err := os.ReadDir("./database/maps")
+	validTags, err := filterTags(request.Tags)
 	if err != nil {
 		return response, err
 	}
 
-	totalWeight := 0.0
-	for _, t := range request.Tags {
-		totalWeight += t.Weight
-	}
-
-	validTags := []AggregateDataTagInfo{}
-	for _, dirent := range dirents {
-		tag, found := Find(request.Tags, func(tag AggregateDataTagInfo) bool { return tag.Tag == stripExtension(dirent.Name()) })
-		if !found {
-			continue
-		}
-
-		validTags = append(validTags, tag)
-	}
-
-	resultsChan := make(chan [][]float64, len(validTags))
-	errorsChan := make(chan error, len(validTags))
-
-	var wg sync.WaitGroup
-	for _, tag := range validTags {
-		fullPath := "./database/maps/" + tag.Tag + ".png"
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			result, err := readFile(fullPath, tag.Weight/totalWeight, request.SamplingRate)
-			if err != nil {
-				errorsChan <- err
-				return
-			}
-
-			resultsChan <- result
-		}()
-	}
-
-	wg.Wait()
-	close(resultsChan)
-	close(errorsChan)
-
-	for err := range errorsChan {
-		return response, err
-	}
-
-	overlayLatLongBounds, err := getOverlayBounds()
+	allResults, err := computeAllFileValues(validTags, request.SamplingRate, overlayImg)
 	if err != nil {
 		return response, err
-	}
-
-	allResults := [][][]float64{}
-	for result := range resultsChan {
-		allResults = append(allResults, result)
 	}
 
 	width, height := -1, -1
@@ -132,7 +71,68 @@ func aggregateData(request AggregateDataRequest) (MapAggregationResponse, error)
 	return MapAggregationResponse{Data: data, GapY: gapY, GapX: gapX}, nil
 }
 
-func readFile(filename string, weight float64, samplingRate int) ([][]float64, error) {
+func filterTags(tags []AggregateDataTagInfo) ([]AggregateDataTagInfo, error) {
+	dirents, err := os.ReadDir("./database/maps")
+	if err != nil {
+		return nil, err
+	}
+
+	validTags := []AggregateDataTagInfo{}
+	for _, dirent := range dirents {
+		tag, found := Find(tags, func(tag AggregateDataTagInfo) bool { return tag.Tag == stripExtension(dirent.Name()) })
+		if !found {
+			continue
+		}
+
+		validTags = append(validTags, tag)
+	}
+
+	return validTags, nil
+}
+
+func computeAllFileValues(validTags []AggregateDataTagInfo, samplingRate int, overlayImg image.Image) ([][][]float64, error) {
+	totalWeight := 0.0
+	for _, t := range validTags {
+		totalWeight += t.Weight
+	}
+
+	resultsChan := make(chan [][]float64, len(validTags))
+	errorsChan := make(chan error, len(validTags))
+
+	var wg sync.WaitGroup
+	for _, tag := range validTags {
+		fullPath := "./database/maps/" + tag.Tag + ".png"
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			result, err := computeFileValues(fullPath, tag.Weight/totalWeight, samplingRate, overlayImg)
+			if err != nil {
+				errorsChan <- err
+				return
+			}
+
+			resultsChan <- result
+		}()
+	}
+
+	wg.Wait()
+	close(resultsChan)
+	close(errorsChan)
+
+	for err := range errorsChan {
+		return nil, err
+	}
+
+	allResults := [][][]float64{}
+	for result := range resultsChan {
+		allResults = append(allResults, result)
+	}
+
+	return allResults, nil
+}
+
+func computeFileValues(filename string, weight float64, samplingRate int, overlayImg image.Image) ([][]float64, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -143,9 +143,9 @@ func readFile(filename string, weight float64, samplingRate int) ([][]float64, e
 		return nil, err
 	}
 
-	rgbaFile := decodeToRGBA(pngFile)
+	img := decodeToRGBA(pngFile)
 
-	bounds := rgbaFile.Bounds()
+	bounds := img.Bounds()
 
 	ySamples := bounds.Max.Y / samplingRate
 	xSamples := bounds.Max.X / samplingRate
@@ -159,9 +159,22 @@ func readFile(filename string, weight float64, samplingRate int) ([][]float64, e
 			defer wg.Done()
 			row := []float64{}
 			for ix := range xSamples {
-				_, g, _, _ := getRgba(rgbaFile, ix*samplingRate, iy*samplingRate)
+				topLeftX, topLeftY := ix*samplingRate, iy*samplingRate
 
-				row = append(row, float64(g)/255*weight)
+				sumValue := 0
+				numRelevant := 0
+				for offY := range samplingRate {
+					for offX := range samplingRate {
+						if isRelevant(overlayImg, topLeftX+offX, topLeftY+offY) {
+							_, g, _, _ := getRgba(img, topLeftX+offX, topLeftY+offY)
+							sumValue += int(g)
+							numRelevant++
+						}
+					}
+				}
+
+				avgValue := float64(sumValue) / float64(numRelevant)
+				row = append(row, (avgValue/255)*weight)
 			}
 			result[iy] = row
 		}()
