@@ -1,16 +1,3 @@
-@mixin submit-button {
-  width: 100%;
-  margin-top: 20px;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 16px;
-  box-shadow: 0px 2px 2px #ddd;
-  cursor: pointer;
-  color: white;
-  font-weight: bold;
-  font-size: 1.125em;
-}
-
 input[type=text], input[type=number] {
   font-size: 0.875em;
   padding: 6px 10px;
@@ -20,7 +7,7 @@ input[type=text], input[type=number] {
   box-shadow: 0px 2px 3px #eee;
 }
 
-button.standard-button, input[type=file]::file-selector-button {
+.btn, input[type=file]::file-selector-button {
   padding: 2px 6px;
   background-color: #f0f0f0;
   border: 1px solid #bbb;
@@ -31,6 +18,23 @@ button.standard-button, input[type=file]::file-selector-button {
 
   &:hover {
     background-color: #e7e7e7;
+  }
+}
+
+.submit-btn {
+  width: 100%;
+  margin-top: 12px;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  color: white;
+  font-weight: bold;
+  font-size: 1.125em;
+  background-color: #277bbb;
+
+  &:hover {
+    background-color: #1d71b2;
   }
 }
 
@@ -54,11 +58,11 @@ button.standard-button, input[type=file]::file-selector-button {
   align-items: center;
 
   input[type=text], input[type=number] {
-    width: 40%;
+    width: 45%;
   }
 
   input[type=file] {
-    width: 40%;
+    width: 45%;
 
     &::file-selector-button {
       font-size: 1.125em;

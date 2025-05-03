@@ -14,7 +14,7 @@ const props = defineProps<Props>();
     <div class="example-image-container">
       <img class="example-image" :src="props.imgSrc" :alt="props.description" />
     </div>
-    <RouterLink class="add-map-link" :to="props.link">{{ name }}</RouterLink>
+    <RouterLink class="btn add-map-link" :to="props.link">{{ name }}</RouterLink>
     <div class="add-map-description">
       {{ description }}
     </div>
@@ -22,6 +22,8 @@ const props = defineProps<Props>();
 </template>
 
 <style lang="scss" scoped>
+@import "../styles/shared.scss";
+
 .add-map-container {
   display: flex;
   flex-direction: column;
@@ -32,15 +34,9 @@ const props = defineProps<Props>();
 }
 
 .add-map-link {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   text-decoration: none;
   color: black;
   font-weight: 600;
-  border: 1px solid lightgray;
-  background-color: #f8f8f8;
-  border-radius: 6px;
   padding: 8px 12px;
 }
 

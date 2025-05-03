@@ -14,7 +14,7 @@
           Begin by selecting the rectangular boundaries of the geographic area you are interested in, and optionally an overlay to define the land area of interest within the rectangular boundary.
         </li>
         <li>
-          Navigate to the 'Add Map' page to add different datasets of interest relating to the selected area. The goal of each map is to pinpoint which locations within your geographic area
+          Navigate to the 'Add Map Dataset' page to add different datasets of interest relating to the selected area. The goal of each map is to pinpoint which locations within your geographic area
           are 'better' or 'worse' with respect to a variable of interest.
         </li>
         <li>

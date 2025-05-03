@@ -100,7 +100,6 @@ async function confirmMap() {
 }
 
 .confirm-button {
-  @include shared.submit-button;
   background-color: #18a118;
 }
 </style>

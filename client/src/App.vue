@@ -5,7 +5,7 @@
   <nav>
     <RouterLink to="/">Home</RouterLink>
     <RouterLink to="/about">About</RouterLink>
-    <RouterLink to="/add-map">Add Map</RouterLink>
+    <RouterLink to="/add-map">Add Map Dataset</RouterLink>
   </nav>
 
   <main>

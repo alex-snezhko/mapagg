@@ -4,14 +4,15 @@ import { onMounted, onUnmounted, reactive, ref, useTemplateRef, watch } from 'vu
 import { useRouter } from 'vue-router';
 import AddMapLayout from './AddMapLayout.vue';
 import type { MapPreviewState } from './MapPreview.vue';
-import Slider from './Slider.vue';
+import CheckMarkIcon from './icons/CheckMarkIcon.vue';
+import InfoIcon from './icons/InfoIcon.vue';
 
 type EditingAction = "defineBounds" | "selectLegend"
 interface LegendItemWithId extends LegendItem {
   id: number;
 }
 
-const targetHeight = 640;
+const targetHeight = ref(0);
 
 let selectedImage: File;
 let selectedImageBounds: { width: number; height: number; };
@@ -27,15 +28,22 @@ const completedActions = reactive<Record<EditingAction, boolean>>({
 });
 
 const overlayData = reactive({ xOffset: 0, yOffset: 0, scale: 1 });
+
+let currLegendId = 0;
 const legend = reactive<{ items: LegendItemWithId[]; colorTolerance: number; borderTolerance: number; }>({
-  items: [],
+  items: [
+    {
+      id: currLegendId++,
+      color: null,
+      value: null,
+    }
+  ],
   colorTolerance: 10,
   borderTolerance: 3,
 });
 const tag = ref("");
 
 const refImage = useTemplateRef("ref-img");
-const overlayImage = useTemplateRef("overlay-img");
 const refImageCanvas = useTemplateRef("ref-canvas");
 
 const router = useRouter();
@@ -64,6 +72,22 @@ onUnmounted(() => {
   }
 })
 
+let refImageResizeObserver;
+watch(refImage, imgElem => {
+  if (imgElem) {
+    refImageResizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        if (entry.contentRect.height > 0) {
+          targetHeight.value = entry.contentRect.height;
+        }
+      }
+    });
+    
+    refImageResizeObserver.disconnect();
+    refImageResizeObserver.observe(imgElem);
+  }
+})
+
 watch(refImageCanvas, canvasElem => {
   if (canvasElem) {
     const canvasContext = canvasElem.getContext('2d')!;
@@ -72,10 +96,10 @@ watch(refImageCanvas, canvasElem => {
     canvasImg.src = imageSelectedSrc.value!;
 
     canvasImg.onload = () => {
-      const targetWidth = Math.floor(selectedImageBounds.width * (targetHeight / selectedImageBounds.height));
+      const targetWidth = Math.floor(selectedImageBounds.width * (targetHeight.value / selectedImageBounds.height));
       canvasElem.width = targetWidth;
-      canvasElem.height = targetHeight;
-      canvasContext.drawImage(canvasImg, 0, 0, targetWidth, targetHeight);
+      canvasElem.height = targetHeight.value;
+      canvasContext.drawImage(canvasImg, 0, 0, targetWidth, targetHeight.value);
     }
   }
 })
@@ -124,9 +148,8 @@ function selectImage(event: Event) {
   reader.readAsDataURL(file);
 }
 
-let currId = 0;
 function addLegendKey() {
-  legend.items.push({ id: ++currId, color: null, value: null });
+  legend.items.push({ id: currLegendId++, color: null, value: null });
 }
 
 function removeLegendKey(id: number) {
@@ -181,6 +204,14 @@ function confirmLegend() {
   }
 }
 
+function toggleSelectingColor(legendItem: LegendItemWithId) {
+  if (selectingColorId.value === legendItem.id) {
+    selectingColorId.value = null;
+  } else {
+    selectingColorId.value = legendItem.id;
+  }
+}
+
 async function submitData() {
   if (legend.items.some(l => l.color === null)) {
     alert("Some color values not specified");
@@ -192,7 +223,7 @@ async function submitData() {
     return;
   }
 
-  const imageScale = selectedImageBounds.height / targetHeight;
+  const imageScale = selectedImageBounds.height / targetHeight.value;
 
   const overlayAspectRatio = overlayImageBounds.width / overlayImageBounds.height;
 
@@ -200,8 +231,8 @@ async function submitData() {
     tag: tag.value,
     overlayLocTopLeftX: Math.floor(overlayData.xOffset * imageScale),
     overlayLocTopLeftY: Math.floor(overlayData.yOffset * imageScale),
-    overlayLocBottomRightX: Math.floor((overlayData.xOffset + targetHeight * overlayAspectRatio * overlayData.scale) * imageScale),
-    overlayLocBottomRightY: Math.floor((overlayData.yOffset + targetHeight * overlayData.scale) * imageScale),
+    overlayLocBottomRightX: Math.floor((overlayData.xOffset + targetHeight.value * overlayAspectRatio * overlayData.scale) * imageScale),
+    overlayLocBottomRightY: Math.floor((overlayData.yOffset + targetHeight.value * overlayData.scale) * imageScale),
     colorTolerance: legend.colorTolerance,
     borderTolerance: legend.borderTolerance,
     legend: legend.items,
@@ -230,7 +261,7 @@ async function submitData() {
 
 <template>
   <AddMapLayout name="Add Choropleth Map Dataset" :map-preview-state="mapPreviewState">
-    <div class="form-fields">
+    <div class="form-fields choropleth-form-fields">
       <div class="form-field">
         <label for="tag">Tag</label>
         <input type="text" v-model="tag" name="tag" />
@@ -242,117 +273,133 @@ async function submitData() {
         <label for="map">Choose Map</label>
         <input type="file" id="map" name="map" accept="image/png" @input="selectImage" />
       </div>
-    </div>
 
-    <div v-if="!!imageSelectedSrc">
-      <button
-        @click="selectedEditingAction = 'defineBounds'"
-        class="tab-button"
-        :class="{ 'active-tab': selectedEditingAction === 'defineBounds' }"
-      >
-        Define Bounds
-        <span v-if="completedActions.defineBounds">✓</span>
-      </button>
-
-      <button
-        @click="selectedEditingAction = 'selectLegend'"
-        class="tab-button"
-        :class="{ 'active-tab': selectedEditingAction === 'selectLegend' }"
-      >
-        Define Legend
-        <span v-if="completedActions.selectLegend">✓</span>
-      </button>
-
-      <div v-if="selectedEditingAction === 'defineBounds'" class="tab-content">
-        <p>Shift + Scroll to adjust overlay size</p>
-
-        <form @submit.prevent="confirmOverlay" class="form-fields">
-          <div class="form-field">
-            <label for="xOffset">Overlay X Offset</label>
-            <input type="number" v-model="overlayData.xOffset" name="xOffset" />
-          </div>
-
-          <div class="form-field">
-            <label for="yOffset">Overlay Y Offset</label>
-            <input type="number" v-model="overlayData.yOffset" name="yOffset" />
-          </div>
-
-          <div class="form-field">
-            <label for="scale">Overlay Scale</label>
-            <input type="number" v-model="overlayData.scale" name="scale" step="any" />
-          </div>
-
-          <input type="submit" value="Submit" />
-        </form>
-
-        <div class="map-container">
-          <img :src="imageSelectedSrc" ref="ref-img" class="ref-img" />
-
-          <img
-            class="overlay-img"
-            ref="overlay-img"
-            src="http://localhost:8080/assets/blackwhite.png"
-            draggable="false"
-            :style="{ left: overlayData.xOffset + 'px', top: overlayData.yOffset + 'px', height: overlayData.scale * targetHeight + 'px' }"
-            @mousedown="startDrag"
-          />
-        </div>
-      </div>
-      <div v-else-if="selectedEditingAction === 'selectLegend'" class="tab-content">
-        <div class="form-fields">
-          <h2>Legend Colors</h2>
-
-          <div
-            v-for="legendItem of legend.items"
-            :key="legendItem.id"
-            class="legend-item"
-            :class="{ 'active-legend-item': legendItem.id === selectingColorId }"
+      <div v-if="!!imageSelectedSrc" class="define-map-info">
+        <div class="tab-buttons">
+          <button
+            @click="selectedEditingAction = 'defineBounds'"
+            class="tab-button"
+            :class="{ 'active-tab': selectedEditingAction === 'defineBounds' }"
           >
-            <button class="standard-button select-color-button" @click="selectingColorId = legendItem.id">
-              <span class="select-color-text">
-                Select Color
-              </span>
-              <span
-                class="color-preview"
-                :style="legendItem.color !== null ? { 'background-color': hexColor(legendItem.color) } : { 'border': '1px solid gray' }"
-              >
-                <span v-if="legendItem.color === null" class="unselected-color-question-mark">
-                  ?
-                </span>
-              </span>
-            </button>
+            <span>Define Bounds</span>
+            <CheckMarkIcon v-if="completedActions.defineBounds" class="check-mark-icon" />
+          </button>
 
-            <div>
-              <label for="value">Value</label>
-              <input type="number" name="value" v-model="legendItem.value" />
-              <button class="cancel-button" @click="removeLegendKey(legendItem.id)"><span>🗙</span></button>
-            </div>
-          </div>
-
-          <button class="standard-button add-legend-key-button" @click="addLegendKey">Add Legend Key</button>
-
-          <hr />
-
-          <div class="form-field">
-            <label for="colorTolerance">Color Tolerance</label>
-            <input type="number" v-model="legend.colorTolerance" name="colorTolerance" />
-          </div>
-
-          <div class="form-field">
-            <label for="borderTolerance">Border Tolerance</label>
-            <input type="number" v-model="legend.borderTolerance" name="borderTolerance" />
-          </div>
-
-          <button @click="confirmLegend">Submit</button>
+          <button
+            @click="selectedEditingAction = 'selectLegend'"
+            class="tab-button"
+            :class="{ 'active-tab': selectedEditingAction === 'selectLegend' }"
+          >
+            <span>Define Legend</span>
+            <CheckMarkIcon v-if="completedActions.selectLegend" class="check-mark-icon" />
+          </button>
         </div>
 
-        <div class="map-container">
-          <canvas
-            ref="ref-canvas"
-            class="ref-canvas"
-            :style="{ 'cursor': selectingColorId !== null ? 'crosshair' : 'auto' }"
-            @click="selectPixel"
-          ></canvas>
+        <div v-show="selectedEditingAction === 'defineBounds'" class="tab-content">
+          <div class="form-fields">
+            <div class="form-field">
+              <label for="xOffset">Overlay X Offset</label>
+              <input type="number" v-model="overlayData.xOffset" name="xOffset" />
+            </div>
+
+            <div class="form-field">
+              <label for="yOffset">Overlay Y Offset</label>
+              <input type="number" v-model="overlayData.yOffset" name="yOffset" />
+            </div>
+
+            <div class="form-field">
+              <label for="scale">Overlay Scale</label>
+              <input type="number" v-model="overlayData.scale" name="scale" step="any" />
+            </div>
+
+            <div class="info-box">
+              <InfoIcon class="info-icon" />
+              <div>
+                <p>Click and drag overlay to move</p>
+                <p>Shift + Scroll to adjust overlay scale</p>
+              </div>
+            </div>
+
+            <div class="map-container">
+              <div>
+                <img :src="imageSelectedSrc" ref="ref-img" class="ref-img" />
+
+                <img
+                  class="overlay-img"
+                  src="http://localhost:8080/assets/blackwhite.png"
+                  draggable="false"
+                  :style="{ left: overlayData.xOffset + 'px', top: overlayData.yOffset + 'px', height: overlayData.scale * targetHeight + 'px' }"
+                  @mousedown="startDrag"
+                />
+              </div>
+            </div>
+
+            <button class="btn submit-btn" @click="confirmOverlay">Confirm Overlay Bounds</button>
+          </div>
+        </div>
+        <div v-show="selectedEditingAction === 'selectLegend'" class="tab-content">
+          <div class="form-fields">
+            <h2>Legend Colors</h2>
+
+            <div
+              v-for="legendItem of legend.items"
+              :key="legendItem.id"
+              class="legend-item"
+              :class="{ 'active-legend-item': legendItem.id === selectingColorId }"
+            >
+              <button class="btn select-color-button" @click="toggleSelectingColor(legendItem)">
+                <span class="select-color-text">
+                  {{ legendItem.id === selectingColorId ? 'Selecting Color' : 'Select Color' }}
+                </span>
+                <span
+                  class="color-preview"
+                  :style="legendItem.color !== null ? { 'background-color': hexColor(legendItem.color) } : { 'border': '1px solid gray' }"
+                >
+                  <span v-if="legendItem.color === null" class="unselected-color-question-mark">
+                    ?
+                  </span>
+                </span>
+              </button>
+
+              <div>
+                <label for="value">Value</label>
+                <input type="number" name="value" v-model="legendItem.value" />
+                <button
+                  :disabled="legend.items.length === 1"
+                  class="cancel-button"
+                  :class="{ 'disabled-btn': legend.items.length === 1 }"
+                  @click="removeLegendKey(legendItem.id)"
+                >
+                  <span>🗙</span>
+                </button>
+              </div>
+            </div>
+
+            <button class="btn add-legend-key-button" @click="addLegendKey">Add Legend Key</button>
+
+            <hr />
+
+            <div class="form-field">
+              <label for="colorTolerance">Color Tolerance</label>
+              <input type="number" v-model="legend.colorTolerance" name="colorTolerance" />
+            </div>
+
+            <div class="form-field">
+              <label for="borderTolerance">Border Tolerance</label>
+              <input type="number" v-model="legend.borderTolerance" name="borderTolerance" />
+            </div>
+
+            <div class="map-container">
+              <canvas
+                ref="ref-canvas"
+                class="ref-canvas"
+                :style="{ 'cursor': selectingColorId !== null ? 'crosshair' : 'auto' }"
+                @click="selectPixel"
+              ></canvas>
+            </div>
+
+            <button class="btn submit-btn" @click="confirmLegend">Confirm Legend</button>
+          </div>
         </div>
       </div>
     </div>
@@ -362,7 +409,19 @@ async function submitData() {
 <style lang="scss" scoped>
 @import "../styles/shared.scss";
 
+.choropleth-form-fields {
+  width: 682px;
+}
+
+.tab-buttons {
+  display: flex;
+  align-items: stretch;
+}
+
 .tab-button {
+  display: flex;
+  gap: 6px;
+  align-items: center;
   padding: 8px 20px;
   font-size: 1.0625em;
   font-weight: 500;
@@ -394,19 +453,53 @@ async function submitData() {
   align-items: center;
 }
 
+@keyframes blinking {
+  $color: rgb(200, 217, 230);
+  $end-color: rgb(135, 179, 212);
+  0%, 25% {
+    background-color: $color;
+  }
+
+  50% {
+    background-color: $end-color;
+  }
+
+  75%, 100% {
+    background-color: $color;
+  }
+}
+
 .active-legend-item {
-  border: 1px solid red;
+  .select-color-button {
+    animation: blinking 2s linear infinite;
+  }
+}
+
+.define-map-info {
+  margin-top: 24px;
 }
 
 .map-container {
+  height: 640px;
+  width: 640px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   position: relative;
   overflow: hidden;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+}
+
+.check-mark-icon {
+  width: 1em;
+  height: 1em;
 }
 
 .ref-img {
-  height: 640px;
+  max-height: 640px;
+  max-width: 640px;
   margin: auto;
-  border: 1px solid black;
 }
 
 .ref-canvas {
@@ -449,19 +542,49 @@ async function submitData() {
 
 .cancel-button {
   margin-left: 12px;
-  width: 24px;
+  width: 22px;
+  height: 22px;
   color: white;
-  background-color: rgb(255, 51, 51);
+  background-color: rgb(211, 55, 55);
   border-radius: 50%;
   border: none;
-  height: 24px;
-  font-size: 1em;
+  font-size: 0.875em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
 
-  &:hover {
-    background-color: rgb(224, 0, 0);
+  &:not(.disabled-btn):hover {
+    background-color: rgb(174, 18, 18);
   }
+}
+
+.disabled-btn {
+  cursor: auto;
+  background-color: rgb(228, 141, 141);
+}
+
+.info-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border: 1px solid #aaa;
+  border-radius: 8px;
+  background-color: #eff3f6;
+  font-size: 0.875em;
+  // width: fit-content;
+  color: #444;
+  box-shadow: 0 2px 2px #ddd;
+  margin: 4px 0;
+
+  p {
+    line-height: 1.6;
+  }
+}
+
+.info-icon {
+  width: 22px;
+  height: 22px;
 }
 </style>

@@ -17,7 +17,7 @@ const model = defineModel<AggregationInputs>({ required: true });
       <h2>Tag Values</h2>
       <div v-for="(tag, i) of model.tags" :key="tag.tag" class="input-value">
         <label>{{ tag.tag }}</label>
-        <Slider v-model="model.tags[i].weight" />
+        <Slider v-model="model.tags[i].weight" :slider-bar-height="6" :slider-bar-width="120" :slider-radius="10" />
       </div>
     </div>
   </div>
@@ -32,6 +32,9 @@ const model = defineModel<AggregationInputs>({ required: true });
 }
 
 .tag-values {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   h2 {
     font-size: 1.125em;
     margin-top: 12px;

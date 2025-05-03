@@ -97,7 +97,7 @@ async function submit() {
         <div>
           <input
             type="button"
-            class="submit-button"
+            class="btn submit-btn"
             :value="mapPreviewState.state === 'present' ? 'Update' : 'Submit'"
             @click="submit"
           />
@@ -129,10 +129,5 @@ h2 {
   text-align: center;
   padding-bottom: 40px;
   font-weight: bold;
-}
-
-.submit-button {
-  @include submit-button;
-  background-color: #1775b3;
 }
 </style>
