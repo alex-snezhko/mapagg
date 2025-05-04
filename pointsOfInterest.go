@@ -13,7 +13,23 @@ import (
 	"sync"
 )
 
-func submitPointsOfInterest(submittedFile multipart.File, data SubmitCoordinatesData) (*image.RGBA, error) {
+func submitPointsOfInterestFromCsv(submittedFile multipart.File, data SubmitPointsOfInterestFromCsvData) (*image.RGBA, error) {
+	submittedPointsOfInterest, err := readPointsOfInterestFromCsv(submittedFile, data.LatCol, data.LongCol, data.WeightCol)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read latlongs CSV: %w", err)
+	}
+
+	newData := SubmitPointsOfInterestData{
+		Tag:                     data.Tag,
+		PointsOfInterest:        submittedPointsOfInterest,
+		MinThresholdRadiusMiles: data.MinThresholdRadiusMiles,
+		MaxThresholdRadiusMiles: data.MaxThresholdRadiusMiles,
+	}
+
+	return submitPointsOfInterest(newData)
+}
+
+func submitPointsOfInterest(data SubmitPointsOfInterestData) (*image.RGBA, error) {
 	overlayMapImg, overlayLatLongBounds, err := getOverlayData()
 	if err != nil {
 		return nil, err
@@ -22,11 +38,6 @@ func submitPointsOfInterest(submittedFile multipart.File, data SubmitCoordinates
 	overlayBounds := overlayMapImg.Bounds()
 
 	newImg := image.NewRGBA(image.Rect(0, 0, overlayBounds.Max.X, overlayBounds.Max.Y))
-
-	submittedLatLongs, err := readLatLongCsv(submittedFile, data.LatCol, data.LongCol)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read latlongs CSV: %w", err)
-	}
 
 	gapY := (1.0 / float64(overlayBounds.Max.Y)) * (overlayLatLongBounds.BottomRight.Lat - overlayLatLongBounds.TopLeft.Lat)
 	gapX := (1.0 / float64(overlayBounds.Max.X)) * (overlayLatLongBounds.BottomRight.Long - overlayLatLongBounds.TopLeft.Long)
@@ -49,15 +60,17 @@ func submitPointsOfInterest(submittedFile multipart.File, data SubmitCoordinates
 					long := overlayLatLongBounds.TopLeft.Long + float64(x)*gapX
 
 					minDist := math.MaxFloat64
-					for _, submittedLatLong := range submittedLatLongs {
-						dLat := math.Abs(lat - submittedLatLong.Lat)
-						dLong := math.Abs(long - submittedLatLong.Long)
+					var closestPointOfInterest PointOfInterest
+					for _, pointOfInterest := range data.PointsOfInterest {
+						dLat := math.Abs(lat-pointOfInterest.LatLong.Lat) / pointOfInterest.Weight
+						dLong := math.Abs(long-pointOfInterest.LatLong.Long) / pointOfInterest.Weight
 						dist := math.Sqrt(dLat*dLat + dLong*dLong)
 
 						minDist = math.Min(minDist, dist)
+						closestPointOfInterest = pointOfInterest
 					}
 
-					value := clampedInverseLerp(minThresholdRadiusDeg, maxThresholdRadiusDeg, minDist)
+					value := clampedInverseLerp(minThresholdRadiusDeg*closestPointOfInterest.Weight, maxThresholdRadiusDeg*closestPointOfInterest.Weight, minDist)
 
 					newColor = valueColor(value)
 				}
@@ -72,7 +85,7 @@ func submitPointsOfInterest(submittedFile multipart.File, data SubmitCoordinates
 	return newImg, nil
 }
 
-func readLatLongCsv(submittedFile multipart.File, latCol string, longCol string) ([]LatLong, error) {
+func readPointsOfInterestFromCsv(submittedFile multipart.File, latCol, longCol string, weightCol *string) ([]PointOfInterest, error) {
 	var buf bytes.Buffer
 	bytesRead, err := buf.ReadFrom(submittedFile)
 	if err != nil {
@@ -104,7 +117,15 @@ func readLatLongCsv(submittedFile multipart.File, latCol string, longCol string)
 		return nil, fmt.Errorf("long col unexpectedly not found")
 	}
 
-	result := []LatLong{}
+	weightI := -1
+	if weightCol != nil && *weightCol != "" {
+		weightI = slices.Index(header, *weightCol)
+		if weightI == -1 {
+			return nil, fmt.Errorf("weight col unexpectedly not found")
+		}
+	}
+
+	result := []PointOfInterest{}
 	for _, row := range rows[1:] {
 		lat, err := strconv.ParseFloat(row[latI], 64)
 		if err != nil {
@@ -116,7 +137,18 @@ func readLatLongCsv(submittedFile multipart.File, latCol string, longCol string)
 			return nil, fmt.Errorf("failed to parse long %s to float: %w", row[longI], err)
 		}
 
-		result = append(result, LatLong{Lat: lat, Long: long})
+		weight := 1.0
+		if weightI != 1 {
+			weight, err = strconv.ParseFloat(row[weightI], 64)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse weight %s to float: %w", row[weightI], err)
+			}
+		}
+
+		result = append(result, PointOfInterest{
+			LatLong: LatLong{Lat: lat, Long: long},
+			Weight:  weight,
+		})
 	}
 
 	return result, nil

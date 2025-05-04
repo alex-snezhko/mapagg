@@ -91,6 +91,7 @@ async function confirmMap() {
   img {
     max-width: 640px;
     max-height: 640px;
+    opacity: 0.75;
   }
 }
 

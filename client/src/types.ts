@@ -11,6 +11,11 @@ export interface LegendItem {
   value: number | null;
 }
 
+export interface LatLong {
+	lat: number;
+	long: number;
+}
+
 export interface SubmitChoroplethMapRequest {
   tag: string;
   overlayLocTopLeftX: number;
@@ -20,6 +25,31 @@ export interface SubmitChoroplethMapRequest {
   colorTolerance: number;
   borderTolerance: number;
   legend: LegendItem[];
+}
+
+export interface SubmitPointsOfInterestFromCsvData {
+	tag: string;
+	minThresholdRadiusMiles: number;
+	maxThresholdRadiusMiles: number;
+	latCol: string;
+	longCol: string;
+  weightCol: string | null;
+}
+
+export interface PointOfInterest {
+  latLong: LatLong;
+  weight: number;
+}
+
+export interface PointOfInterestWithId extends PointOfInterest {
+  id: number;
+}
+
+export interface SubmitPointsOfInterestData {
+	tag: string;
+	pointsOfInterest: PointOfInterest[];
+	minThresholdRadiusMiles: number;
+	maxThresholdRadiusMiles: number;
 }
 
 export interface MapAggregation {
@@ -36,11 +66,6 @@ export interface AggregateDataTag {
 export interface AggregationInputs {
   tags: AggregateDataTag[];
   samplingRate: number;
-}
-
-export interface LatLong {
-	lat: number;
-	long: number;
 }
 
 export interface OverlayBounds {

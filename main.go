@@ -45,12 +45,25 @@ type SubmitFileData struct {
 	File *multipart.FileHeader `form:"file" binding:"required"`
 }
 
-type SubmitCoordinatesData struct {
+type SubmitPointsOfInterestFromCsvData struct {
 	Tag                     string  `json:"tag"`
 	MinThresholdRadiusMiles float64 `json:"minThresholdRadiusMiles"`
 	MaxThresholdRadiusMiles float64 `json:"maxThresholdRadiusMiles"`
 	LatCol                  string  `json:"latCol"`
 	LongCol                 string  `json:"longCol"`
+	WeightCol               *string `json:"weightCol"`
+}
+
+type PointOfInterest struct {
+	LatLong LatLong `json:"latLong"`
+	Weight  float64 `json:"weight"`
+}
+
+type SubmitPointsOfInterestData struct {
+	Tag                     string            `json:"tag"`
+	PointsOfInterest        []PointOfInterest `json:"pointsOfInterest"`
+	MinThresholdRadiusMiles float64           `json:"minThresholdRadiusMiles"`
+	MaxThresholdRadiusMiles float64           `json:"maxThresholdRadiusMiles"`
 }
 
 type ConfirmMapData struct {
@@ -121,7 +134,7 @@ func main() {
 		c.File(tmpFilePath)
 	})
 
-	r.POST("/submit-coordinates", func(c *gin.Context) {
+	r.POST("/submit-coordinates-from-csv", func(c *gin.Context) {
 		var fileData SubmitFileData
 
 		if err := c.ShouldBind(&fileData); err != nil {
@@ -137,20 +150,43 @@ func main() {
 
 		defer file.Close()
 
-		var submitCoordinatesData SubmitCoordinatesData
+		var submitCoordinatesData SubmitPointsOfInterestFromCsvData
 		err = json.Unmarshal([]byte(fileData.Data), &submitCoordinatesData)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, "Oops unmarshal "+err.Error())
 			return
 		}
 
-		newImg, err := submitPointsOfInterest(file, submitCoordinatesData)
+		newImg, err := submitPointsOfInterestFromCsv(file, submitCoordinatesData)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, "Oops failed "+err.Error())
 			return
 		}
 
 		tmpFilePath, err := writeTmpFile(newImg, submitCoordinatesData.Tag)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, "Oops failed "+err.Error())
+			return
+		}
+
+		c.File(tmpFilePath)
+	})
+
+	r.POST("/submit-coordinates", func(c *gin.Context) {
+		var data SubmitPointsOfInterestData
+
+		if err := c.ShouldBindJSON(&data); err != nil {
+			c.JSON(http.StatusBadRequest, "Oops could not bind")
+			return
+		}
+
+		newImg, err := submitPointsOfInterest(data)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, "Oops failed "+err.Error())
+			return
+		}
+
+		tmpFilePath, err := writeTmpFile(newImg, data.Tag)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, "Oops failed "+err.Error())
 			return

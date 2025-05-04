@@ -42,9 +42,14 @@ const legend = reactive<{ items: LegendItemWithId[]; colorTolerance: number; bor
   borderTolerance: 3,
 });
 const tag = ref("");
+const magnificationLevel = ref(2);
+const magnificationEnabled = ref(false);
+const mouseOverPosition = reactive({ x: 0, y: 0 });
 
 const refImage = useTemplateRef("ref-img");
 const refImageCanvas = useTemplateRef("ref-canvas");
+
+const MAGNIFIER_SIZE = 160;
 
 const router = useRouter();
 
@@ -52,7 +57,7 @@ let mapImgResizeObserver: ResizeObserver | undefined;
 
 onMounted(async () => {
   window.addEventListener("mousemove", drag);
-  window.addEventListener("wheel", scroll)
+  window.addEventListener("wheel", wheel)
   window.addEventListener("mouseup", endDrag);
 
   const img = new Image();
@@ -64,7 +69,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener("mousemove", drag);
-  window.removeEventListener("wheel", scroll)
+  window.removeEventListener("wheel", wheel)
   window.removeEventListener("mouseup", endDrag);
 
   if (mapImgResizeObserver) {
@@ -96,10 +101,12 @@ watch(refImageCanvas, canvasElem => {
     canvasImg.src = imageSelectedSrc.value!;
 
     canvasImg.onload = () => {
+      setTimeout(() => {
       const targetWidth = Math.floor(selectedImageBounds.width * (targetHeight.value / selectedImageBounds.height));
       canvasElem.width = targetWidth;
       canvasElem.height = targetHeight.value;
       canvasContext.drawImage(canvasImg, 0, 0, targetWidth, targetHeight.value);
+      }, 1000);
     }
   }
 })
@@ -111,7 +118,7 @@ function drag(event: MouseEvent) {
   }
 }
 
-function scroll(event: WheelEvent) {
+function wheel(event: WheelEvent) {
   if (event.shiftKey) {
     const scale = Math.max(0, overlayData.scale + event.deltaY * 0.0002);;
     overlayData.scale = Math.round(scale * 1000) / 1000;
@@ -171,6 +178,18 @@ function selectPixel(event: MouseEvent) {
 
   legend.items = legend.items.map(k => selectingColorId.value === k.id ? { ...k, color } : k);
   selectingColorId.value = null;
+}
+
+function onCanvasMouseMove(event: MouseEvent) {
+  mouseOverPosition.x = event.layerX;
+  mouseOverPosition.y = event.layerY;
+}
+
+function onCanvasWheel(event: WheelEvent) {
+  if (event.shiftKey) {
+    const newLevel = Math.max(1, magnificationLevel.value - (event.deltaY * 0.005));
+    magnificationLevel.value = Math.round(newLevel * 1000) / 1000;
+  }
 }
 
 function hexColor(color: readonly [number, number, number, number]): string {
@@ -321,7 +340,7 @@ async function submitData() {
             </div>
 
             <div class="map-container">
-              <div>
+              <div class="map-img-container">
                 <img :src="imageSelectedSrc" ref="ref-img" class="ref-img" />
 
                 <img
@@ -361,7 +380,7 @@ async function submitData() {
                 </span>
               </button>
 
-              <div>
+              <div class="select-color-value">
                 <label for="value">Value</label>
                 <input type="number" name="value" v-model="legendItem.value" />
                 <button
@@ -377,7 +396,41 @@ async function submitData() {
 
             <button class="btn add-legend-key-button" @click="addLegendKey">Add Legend Key</button>
 
-            <hr />
+            <div class="form-field">
+              <label for="magnification-enabled">Enable Magnification</label>
+              <input type="checkbox" v-model="magnificationEnabled" name="magnification-enabled" />
+            </div>
+
+            <div v-if="magnificationEnabled" class="form-field">
+              <label for="magnification-level">Magnification Level</label>
+              <input type="number" step="any" v-model="magnificationLevel" name="magnification-level" />
+            </div>
+
+            <div class="map-container">
+              <canvas
+                ref="ref-canvas"
+                class="ref-canvas"
+                :style="{ 'cursor': selectingColorId !== null ? 'crosshair' : 'auto' }"
+                @click="selectPixel"
+                @mousemove="onCanvasMouseMove"
+                @wheel="onCanvasWheel"
+              ></canvas>
+
+              <div
+                v-if="selectingColorId !== null && magnificationEnabled"
+                class="magnifying-glass"
+                alt="Magnifying glass"
+                :style="{
+                  top: `${mouseOverPosition.y - MAGNIFIER_SIZE / 2}px`,
+                  left: `${mouseOverPosition.x - MAGNIFIER_SIZE / 2}px`,
+                  width: `${MAGNIFIER_SIZE}px`,
+                  height: `${MAGNIFIER_SIZE}px`,
+                  backgroundImage: `url(${imageSelectedSrc})`,
+                  backgroundSize: `${640 * magnificationLevel}px ${640 * magnificationLevel}px`,
+                  backgroundPosition: `-${mouseOverPosition.x * magnificationLevel - MAGNIFIER_SIZE / 2 + 2}px -${mouseOverPosition.y * magnificationLevel - MAGNIFIER_SIZE / 2 + 2}px`
+                }"
+              ></div>
+            </div>
 
             <div class="form-field">
               <label for="colorTolerance">Color Tolerance</label>
@@ -387,15 +440,6 @@ async function submitData() {
             <div class="form-field">
               <label for="borderTolerance">Border Tolerance</label>
               <input type="number" v-model="legend.borderTolerance" name="borderTolerance" />
-            </div>
-
-            <div class="map-container">
-              <canvas
-                ref="ref-canvas"
-                class="ref-canvas"
-                :style="{ 'cursor': selectingColorId !== null ? 'crosshair' : 'auto' }"
-                @click="selectPixel"
-              ></canvas>
             </div>
 
             <button class="btn submit-btn" @click="confirmLegend">Confirm Legend</button>
@@ -491,6 +535,10 @@ async function submitData() {
   border-radius: 4px;
 }
 
+.map-img-container {
+  position: relative;
+}
+
 .check-mark-icon {
   width: 1em;
   height: 1em;
@@ -513,6 +561,10 @@ async function submitData() {
 .select-color-button span {
   display: inline-block;
   vertical-align: middle;
+}
+
+.select-color-value label {
+  margin-right: 8px;
 }
 
 .select-color-text {
@@ -581,6 +633,14 @@ async function submitData() {
   p {
     line-height: 1.6;
   }
+}
+
+.magnifying-glass {
+  background-repeat: no-repeat;
+  border-radius: 8px;
+  border: 2px solid black;
+  pointer-events: none;
+  position: absolute;
 }
 
 .info-icon {

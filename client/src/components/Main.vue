@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
-import Map from "./Map.vue";
+import AggregationMap from "./AggregationMap.vue";
 import Selectors from "./Selectors.vue";
 import type { AggregateDataTag, AggregationInputs, TagsResponse } from "@/types";
 
@@ -49,7 +49,7 @@ async function getTags(existingTagData: AggregateDataTag[] | undefined) {
     <img src="/assets/loading_spinner.svg" v-if="isLoading" class="loading-spinner" />
     <Selectors v-model="inputs" class="selectors-box" />
 
-    <Map :inputs="inputs" class="aggregate-map" @loading-change="val => isLoading = val" />
+    <AggregationMap :inputs="inputs" class="aggregate-map" @loading-change="val => isLoading = val" />
   </div>
 </template>
 

@@ -1,16 +1,28 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
 import MapPreview, { type MapPreviewState } from './MapPreview.vue';
+import SelectionsMap from './SelectionsMap.vue';
+import type { PointOfInterestWithId, SubmitPointsOfInterestData, SubmitPointsOfInterestFromCsvData } from '@/types';
+
+type InputMode = "csv-import" | "select-map";
 
 const inputs = reactive({
+  tag: "",
   minThresholdRadiusMiles: 0.1,
   maxThresholdRadiusMiles: 0.5,
+});
+
+const csvInputs = reactive({
   latCol: "Latitude",
   longCol: "Longitude",
-  tag: ""
-})
+  weightCol: null,
+});
+
+const mapInputs = ref<PointOfInterestWithId[]>([]);
 
 const mapPreviewState = ref<MapPreviewState>({ state: "init" });
+
+const inputMode = ref<InputMode | null>(null);
 
 let csvFile: File;
 async function uploadCsv(event: Event) {
@@ -24,21 +36,44 @@ async function uploadCsv(event: Event) {
 }
 
 async function submit() {
-  if (!csvFile) {
-    alert("Missing CSV file input");
-    return;
+  let res: Response;
+  switch (inputMode.value) {
+    case "csv-import":
+      if (!csvFile) {
+        alert("Missing CSV file input");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("data", JSON.stringify({ ...inputs, ...csvInputs } satisfies SubmitPointsOfInterestFromCsvData));
+      formData.append("file", csvFile);
+
+      mapPreviewState.value = { state: "loading" };
+
+      res = await fetch("http://localhost:8080/submit-coordinates-from-csv", {
+        method: "POST",
+        body: formData,
+      });
+      break;
+    case "select-map":
+      if (mapInputs.value.length === 0) {
+        alert("No lat longs specified");
+        return;
+      }
+
+      const data: SubmitPointsOfInterestData = { ...inputs, pointsOfInterest: mapInputs.value };
+
+      mapPreviewState.value = { state: "loading" };
+
+      res = await fetch("http://localhost:8080/submit-coordinates", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      break;
+    default:
+      alert("Unexpectedly encountered submit without mode selected");
+      return;
   }
-
-  const formData = new FormData();
-  formData.append("data", JSON.stringify(inputs));
-  formData.append("file", csvFile);
-
-  mapPreviewState.value = { state: "loading" };
-
-  const res = await fetch("http://localhost:8080/submit-coordinates", {
-    method: "POST",
-    body: formData,
-  })
 
   if (!res.ok) {
     mapPreviewState.value = { state: "init" };
@@ -69,30 +104,61 @@ async function submit() {
 
         <hr />
 
-        <div class="form-field">
-          <label for="file">CSV File</label>
-          <input type="file" name="file" accept=".csv" @change="uploadCsv" />
+        <div class="input-options">
+          <button
+            class="btn input-option"
+            :class="{ 'active-input-option': inputMode === 'csv-import' }"
+            @click="inputMode = 'csv-import'"
+          >
+            Import CSV File
+          </button>
+          <button
+            class="btn input-option"
+            :class="{ 'active-input-option': inputMode === 'select-map' }"
+            @click="inputMode = 'select-map'"
+          >
+            Select on Map
+          </button>
         </div>
 
-        <div class="form-field">
-          <label for="lat-col">Latitude Column</label>
-          <input type="text" name="lat-col" v-model="inputs.latCol" />
-        </div>
+        <template v-if="inputMode === 'csv-import'">
+          <div class="form-field">
+            <label for="file">CSV File</label>
+            <input type="file" name="file" accept=".csv" @change="uploadCsv" />
+          </div>
 
-        <div class="form-field">
-          <label for="long-col">Longitude Column</label>
-          <input type="text" name="long-col" v-model="inputs.longCol" />
-        </div>
+          <div class="form-field">
+            <label for="lat-col">Latitude Column</label>
+            <input type="text" name="lat-col" v-model="csvInputs.latCol" />
+          </div>
 
-        <div class="form-field">
-          <label for="threshold-radius">Min Threshold Radius (Miles)</label>
-          <input type="number" step="any" name="threshold-radius" class="text-input" v-model="inputs.minThresholdRadiusMiles" />
-        </div>
+          <div class="form-field">
+            <label for="long-col">Longitude Column</label>
+            <input type="text" name="long-col" v-model="csvInputs.longCol" />
+          </div>
 
-        <div class="form-field">
-          <label for="decrease-rate">Max Threshold Radius (Miles)</label>
-          <input type="number" step="any" name="decrease-rate" class="text-input" v-model="inputs.maxThresholdRadiusMiles" />
-        </div>
+          <div class="form-field">
+            <label for="weight-col">Weight Column (Optional)</label>
+            <input type="text" name="weight-col" v-model="csvInputs.weightCol" />
+          </div>
+        </template>
+        <template v-else-if="inputMode === 'select-map'">
+          <div class="selections-map">
+            <SelectionsMap v-model="mapInputs" />
+          </div>
+        </template>
+
+        <template v-if="!!inputMode">
+          <div class="form-field">
+            <label for="threshold-radius">Base Min Threshold Radius (Miles)</label>
+            <input type="number" step="any" name="threshold-radius" class="text-input" v-model="inputs.minThresholdRadiusMiles" />
+          </div>
+
+          <div class="form-field">
+            <label for="decrease-rate">Base Max Threshold Radius (Miles)</label>
+            <input type="number" step="any" name="decrease-rate" class="text-input" v-model="inputs.maxThresholdRadiusMiles" />
+          </div>
+        </template>
 
         <div>
           <input
@@ -112,6 +178,43 @@ async function submit() {
 <style lang="scss" scoped>
 @import "../styles/shared.scss";
 
+.input-options {
+  display: flex;
+  justify-content: space-between;
+  box-shadow: 0 2px 3px #eee;
+}
+
+.input-option {
+  width: 50%;
+  padding: 10px;
+  font-size: 1em;
+  font-weight: 600;
+
+  &:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right: 0;
+    box-shadow: none;
+  }
+
+  &:last-child {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    box-shadow: none;
+  }
+}
+
+.active-input-option {
+  background-color: gray;
+}
+
+.selections-map {
+  height: 640px;
+  width: 640px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+}
+
 .points-of-interest {
   display: flex;
   flex-wrap: wrap;
@@ -122,7 +225,7 @@ async function submit() {
 }
 
 .points-of-interest-inputs {
-  width: 600px;
+  width: 640px;
 }
 
 h2 {
