@@ -3,15 +3,17 @@ import type { OverlayBoundsResponse } from "./types";
 
 export async function initMap() {
   const overlayBoundsRes = await fetch("http://localhost:8080/overlay-bounds");
-  const overlayBounds = await overlayBoundsRes.json() as OverlayBoundsResponse;
-  if (!overlayBounds.success) {
+  const overlayBoundsDataRes = await overlayBoundsRes.json() as OverlayBoundsResponse;
+  if (!overlayBoundsDataRes.success) {
     alert("Failed to get overlay bounds");
     return;
   }
 
-  const centerLat = (overlayBounds.data.bottomRight.lat + overlayBounds.data.topLeft.lat) / 2;
-  const centerLong = (overlayBounds.data.bottomRight.long + overlayBounds.data.topLeft.long) / 2;
-  const zoom = (overlayBounds.data.bottomRight.long - overlayBounds.data.topLeft.long) * 18;
+  const overlayBounds = overlayBoundsDataRes.data;
+
+  const centerLat = (overlayBoundsDataRes.data.bottomRight.lat + overlayBoundsDataRes.data.topLeft.lat) / 2;
+  const centerLong = (overlayBoundsDataRes.data.bottomRight.long + overlayBoundsDataRes.data.topLeft.long) / 2;
+  const zoom = (overlayBoundsDataRes.data.bottomRight.long - overlayBoundsDataRes.data.topLeft.long) * 18;
 
   const map = L.map('map', { zoomControl: false }).setView([centerLat, centerLong], zoom);
 
@@ -25,5 +27,5 @@ export async function initMap() {
 
   CartoDB_Positron.addTo(map);
 
-  return map;
+  return { map, overlayBounds };
 }

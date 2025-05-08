@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { initMap } from '@/map';
-import type { AggregationInputs, MapResponse, OverlayBounds, OverlayBoundsResponse } from '@/types';
-import { debounce } from '@/util';
-import L from 'leaflet';
+import type { AggregationInputs, ComponentData, MapAggregation, MapResponse, OverlayBounds, OverlayBoundsResponse } from '@/types';
+import { onlineBinarySearch, debounce } from '@/util';
+import L, { latLng } from 'leaflet';
 import 'leaflet/dist/leaflet.css'
 import { onMounted, watch } from 'vue';
 
@@ -21,12 +21,14 @@ const debouncedWatcher = debounce((map: L.Map, inputs: AggregationInputs) => {
 }, 1000)
 
 onMounted(async () => {
-  const map = await initMap();
-  if (!map) {
+  const resp = await initMap();
+  if (!resp) {
     return;
   }
 
-  map.on("click", e => onMapClick(map, e));
+  const { map, overlayBounds } = resp;
+
+  map.on("click", e => onMapClick(map, overlayBounds, e));
 
   watch(() => props.inputs, (newTags, oldTags) => {
     if (oldTags.tags.length === 0) {
@@ -37,15 +39,44 @@ onMounted(async () => {
   }, { deep: true })
 });
 
-function onMapClick(map: L.Map, event: L.LeafletMouseEvent) {
+function onMapClick(map: L.Map, overlayBounds: OverlayBounds, event: L.LeafletMouseEvent) {
+  const cells = findCell(event.latlng, overlayBounds);
+  if (!cells) {
+    return;
+  }
+
+  const htmlStr = cells.map(cell => `<p><b style="font-weight: bold;">${cell.tag}:</b> ${cell.value}</p>`).join("\n");
   const popup = L.popup()
     .setLatLng(event.latlng)
-    .setContent(`
-      <p><b>TODO</b></p>
-    `);
+    .setContent(htmlStr);
 
   popup.addTo(map);
 }
+
+interface TagValue {
+  tag: string;
+  value: number;
+}
+
+function findCell(latlng: L.LatLng, overlayBounds: OverlayBounds): TagValue[] | undefined {
+  if (!mapAggregation) {
+    return;
+  }
+
+  // Each should be same width/height, doesn't matter which component is chosen
+  const numPointsY = mapAggregation.componentsData[0].data.length
+  const numPointsX = mapAggregation.componentsData[0].data[0].length;
+
+  const topLat = overlayBounds.topLeft.lat;
+  const leftLong = overlayBounds.topLeft.long;
+
+  const latI = onlineBinarySearch(numPointsY, latlng.lat, mid => topLat - mid * mapAggregation.gapY, (currLat, tgt) => tgt - currLat);
+  const longI = onlineBinarySearch(numPointsX, latlng.lng, mid => leftLong + mid * mapAggregation.gapX, (currLong, tgt) => currLong - tgt);
+
+  return mapAggregation.componentsData.map(c => ({ tag: c.tag, value: c.data[latI][longI] }))
+}
+
+let mapAggregation: MapAggregation;
 
 let layer: any;
 async function hydrateHeatmap(map: L.Map, inputs: AggregationInputs) {
@@ -66,8 +97,9 @@ async function hydrateHeatmap(map: L.Map, inputs: AggregationInputs) {
     return;
   }
 
-  const { gapX, gapY, data } = mapResponse.data;
-  const fs = data.map(([lat, long, val], i) => ({
+  mapAggregation = mapResponse.data;
+  const { gapX, gapY, aggregateData } = mapResponse.data;
+  const fs = aggregateData.map(([lat, long, val], i) => ({
     type: "Feature",
     id: i.toString(),
     properties: {

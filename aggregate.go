@@ -35,12 +35,12 @@ func aggregateData(request AggregateDataRequest) (MapAggregationResponse, error)
 
 	width, height := -1, -1
 	for _, result := range allResults {
-		if height != -1 && len(result) != height {
+		if height != -1 && len(result.Data) != height {
 			return response, fmt.Errorf("heights do not match for all images")
 		}
-		height = len(result)
+		height = len(result.Data)
 
-		for _, row := range result {
+		for _, row := range result.Data {
 			if width != -1 && len(row) != width {
 				return response, fmt.Errorf("widths do not match for all images")
 			}
@@ -48,27 +48,32 @@ func aggregateData(request AggregateDataRequest) (MapAggregationResponse, error)
 		}
 	}
 
-	gapY := (1.0 / float64(height)) * (overlayLatLongBounds.BottomRight.Lat - overlayLatLongBounds.TopLeft.Lat)
+	gapY := (1.0 / float64(height)) * (overlayLatLongBounds.TopLeft.Lat - overlayLatLongBounds.BottomRight.Lat)
 	gapX := (1.0 / float64(width)) * (overlayLatLongBounds.BottomRight.Long - overlayLatLongBounds.TopLeft.Long)
 
-	data := [][3]float64{}
+	aggregateData := []LatLongValue{}
 	for y := range height {
 		for x := range width {
 			value := 0.0
 			for _, result := range allResults {
-				value += result[y][x]
+				value += result.Data[y][x]
 			}
 
 			if value > 0 {
-				lat := overlayLatLongBounds.TopLeft.Lat + float64(y)*gapY
+				lat := overlayLatLongBounds.TopLeft.Lat - float64(y)*gapY
 				long := overlayLatLongBounds.TopLeft.Long + float64(x)*gapX
 
-				data = append(data, [3]float64{lat, long, value})
+				aggregateData = append(aggregateData, LatLongValue{lat, long, value})
 			}
 		}
 	}
 
-	return MapAggregationResponse{Data: data, GapY: gapY, GapX: gapX}, nil
+	return MapAggregationResponse{
+		AggregateData:  aggregateData,
+		ComponentsData: allResults,
+		GapY:           gapY,
+		GapX:           gapX,
+	}, nil
 }
 
 func filterTags(tags []AggregateDataTagInfo) ([]AggregateDataTagInfo, error) {
@@ -90,29 +95,29 @@ func filterTags(tags []AggregateDataTagInfo) ([]AggregateDataTagInfo, error) {
 	return validTags, nil
 }
 
-func computeAllFileValues(validTags []AggregateDataTagInfo, samplingRate int, overlayImg image.Image) ([][][]float64, error) {
+func computeAllFileValues(validTags []AggregateDataTagInfo, samplingRate int, overlayImg image.Image) ([]TaggedImageData, error) {
 	totalWeight := 0.0
 	for _, t := range validTags {
 		totalWeight += t.Weight
 	}
 
-	resultsChan := make(chan [][]float64, len(validTags))
+	resultsChan := make(chan TaggedImageData, len(validTags))
 	errorsChan := make(chan error, len(validTags))
 
 	var wg sync.WaitGroup
-	for _, tag := range validTags {
-		fullPath := "./database/maps/" + tag.Tag + ".png"
+	for _, tagInfo := range validTags {
+		fullPath := "./database/maps/" + tagInfo.Tag + ".png"
 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			result, err := computeFileValues(fullPath, tag.Weight/totalWeight, samplingRate, overlayImg)
+			result, err := computeFileValues(fullPath, tagInfo.Weight/totalWeight, samplingRate, overlayImg)
 			if err != nil {
 				errorsChan <- err
 				return
 			}
 
-			resultsChan <- result
+			resultsChan <- TaggedImageData{Tag: tagInfo.Tag, Data: result}
 		}()
 	}
 
@@ -124,7 +129,7 @@ func computeAllFileValues(validTags []AggregateDataTagInfo, samplingRate int, ov
 		return nil, err
 	}
 
-	allResults := [][][]float64{}
+	allResults := []TaggedImageData{}
 	for result := range resultsChan {
 		allResults = append(allResults, result)
 	}
@@ -173,7 +178,10 @@ func computeFileValues(filename string, weight float64, samplingRate int, overla
 					}
 				}
 
-				avgValue := float64(sumValue) / float64(numRelevant)
+				avgValue := 0.0
+				if numRelevant > 0 {
+					avgValue = float64(sumValue) / float64(numRelevant)
+				}
 				row = append(row, (avgValue/255)*weight)
 			}
 			result[iy] = row

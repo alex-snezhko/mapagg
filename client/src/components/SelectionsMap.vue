@@ -30,10 +30,12 @@ function removePointOfInterest(event: CustomEvent<number>) {
 }
 
 onMounted(async () => {
-  const map = await initMap();
-  if (!map) {
+  const resp = await initMap();
+  if (!resp) {
     return;
   }
+
+  const { map } = resp;
   
   const script = document.createElement("script");
   script.textContent = `

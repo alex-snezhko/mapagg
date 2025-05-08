@@ -52,8 +52,16 @@ export interface SubmitPointsOfInterestData {
 	maxThresholdRadiusMiles: number;
 }
 
+export type LatLongValue = [number, number, number];
+
+export interface ComponentData {
+  tag: string;
+  data: number[][];
+}
+
 export interface MapAggregation {
-  data: [number, number, number][];
+  aggregateData: LatLongValue[];
+  componentsData: ComponentData[];
   gapY: number;
   gapX: number;
 }

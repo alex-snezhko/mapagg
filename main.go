@@ -80,10 +80,18 @@ type AggregateDataRequest struct {
 	SamplingRate int                    `json:"samplingRate"`
 }
 
+type LatLongValue = [3]float64
+
+type TaggedImageData struct {
+	Tag  string      `json:"tag"`
+	Data [][]float64 `json:"data"`
+}
+
 type MapAggregationResponse struct {
-	Data [][3]float64 `json:"data"`
-	GapY float64      `json:"gapY"`
-	GapX float64      `json:"gapX"`
+	AggregateData  []LatLongValue    `json:"aggregateData"`
+	ComponentsData []TaggedImageData `json:"componentsData"`
+	GapY           float64           `json:"gapY"`
+	GapX           float64           `json:"gapX"`
 }
 
 const MilesPerLatLongDegree float64 = 69.172
