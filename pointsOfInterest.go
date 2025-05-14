@@ -5,15 +5,15 @@ import (
 	"encoding/csv"
 	"fmt"
 	"image"
+	"io"
 	"math"
-	"mime/multipart"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 )
 
-func submitPointsOfInterestFromCsv(submittedFile multipart.File, data SubmitPointsOfInterestFromCsvData) (*image.RGBA, error) {
+func submitPointsOfInterestFromCsv(submittedFile io.Reader, data SubmitPointsOfInterestFromCsvData) (*image.RGBA, error) {
 	submittedPointsOfInterest, err := readPointsOfInterestFromCsv(submittedFile, data.LatCol, data.LongCol, data.WeightCol)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read latlongs CSV: %w", err)
@@ -39,8 +39,7 @@ func submitPointsOfInterest(data SubmitPointsOfInterestData) (*image.RGBA, error
 
 	newImg := image.NewRGBA(image.Rect(0, 0, overlayBounds.Max.X, overlayBounds.Max.Y))
 
-	gapY := (1.0 / float64(overlayBounds.Max.Y)) * (overlayLatLongBounds.BottomRight.Lat - overlayLatLongBounds.TopLeft.Lat)
-	gapX := (1.0 / float64(overlayBounds.Max.X)) * (overlayLatLongBounds.BottomRight.Long - overlayLatLongBounds.TopLeft.Long)
+	gapX, gapY := getOverlayLatLongGaps(overlayBounds.Max.X, overlayBounds.Max.Y, overlayLatLongBounds)
 
 	minThresholdRadiusDeg := data.MinThresholdRadiusMiles / MilesPerLatLongDegree
 	maxThresholdRadiusDeg := data.MaxThresholdRadiusMiles / MilesPerLatLongDegree
@@ -56,8 +55,7 @@ func submitPointsOfInterest(data SubmitPointsOfInterestData) (*image.RGBA, error
 
 				newColor := image.Transparent.C
 				if isRelevant {
-					lat := overlayLatLongBounds.TopLeft.Lat + float64(y)*gapY
-					long := overlayLatLongBounds.TopLeft.Long + float64(x)*gapX
+					lat, long := getLatLong(x, y, gapX, gapY, overlayLatLongBounds)
 
 					minDist := math.MaxFloat64
 					var closestPointOfInterest PointOfInterest
@@ -85,7 +83,7 @@ func submitPointsOfInterest(data SubmitPointsOfInterestData) (*image.RGBA, error
 	return newImg, nil
 }
 
-func readPointsOfInterestFromCsv(submittedFile multipart.File, latCol, longCol string, weightCol *string) ([]PointOfInterest, error) {
+func readPointsOfInterestFromCsv(submittedFile io.Reader, latCol, longCol string, weightCol *string) ([]PointOfInterest, error) {
 	var buf bytes.Buffer
 	bytesRead, err := buf.ReadFrom(submittedFile)
 	if err != nil {

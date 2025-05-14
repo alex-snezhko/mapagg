@@ -127,13 +127,20 @@ async function hydrateHeatmap(map: L.Map, inputs: AggregationInputs) {
     layer.remove();
   }
 
-  layer = L.geoJSON(fc as any, {
-    style: (feature) => ({
-      stroke: false,
-      fillOpacity: 0.4,
-      color: color(feature?.properties.value)
-    })
-  });
+  // layer = L.geoJSON(fc as any, {
+  //   style: (feature) => ({
+  //     stroke: false,
+  //     fillOpacity: 0.4,
+  //     color: color(feature?.properties.value)
+  //   })
+  // });
+  
+  // layer.addTo(map);
+
+  const res = await fetch("https://nominatim.openstreetmap.org/search?q=brooklyn,+kings+county&addressdetails=1&format=jsonv2&polygon_geojson=1");
+  const geojson = (await res.json())[0].geojson;
+
+  layer = L.geoJSON(geojson);
   
   layer.addTo(map);
 

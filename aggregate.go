@@ -48,8 +48,7 @@ func aggregateData(request AggregateDataRequest) (MapAggregationResponse, error)
 		}
 	}
 
-	gapY := (1.0 / float64(height)) * (overlayLatLongBounds.TopLeft.Lat - overlayLatLongBounds.BottomRight.Lat)
-	gapX := (1.0 / float64(width)) * (overlayLatLongBounds.BottomRight.Long - overlayLatLongBounds.TopLeft.Long)
+	gapX, gapY := getOverlayLatLongGaps(width, height, overlayLatLongBounds)
 
 	aggregateData := []LatLongValue{}
 	for y := range height {
@@ -60,8 +59,7 @@ func aggregateData(request AggregateDataRequest) (MapAggregationResponse, error)
 			}
 
 			if value > 0 {
-				lat := overlayLatLongBounds.TopLeft.Lat - float64(y)*gapY
-				long := overlayLatLongBounds.TopLeft.Long + float64(x)*gapX
+				lat, long := getLatLong(x, y, gapX, gapY, overlayLatLongBounds)
 
 				aggregateData = append(aggregateData, LatLongValue{lat, long, value})
 			}
@@ -111,7 +109,7 @@ func computeAllFileValues(validTags []AggregateDataTagInfo, samplingRate int, ov
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			result, err := computeFileValues(fullPath, tagInfo.Weight/totalWeight, samplingRate, overlayImg)
+			result, err := computeFileValues(fullPath, tagInfo.Weight/totalWeight, tagInfo.IsHighGood, samplingRate, overlayImg)
 			if err != nil {
 				errorsChan <- err
 				return
@@ -137,7 +135,7 @@ func computeAllFileValues(validTags []AggregateDataTagInfo, samplingRate int, ov
 	return allResults, nil
 }
 
-func computeFileValues(filename string, weight float64, samplingRate int, overlayImg image.Image) ([][]float64, error) {
+func computeFileValues(filename string, weight float64, isHighGood bool, samplingRate int, overlayImg image.Image) ([][]float64, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -170,7 +168,7 @@ func computeFileValues(filename string, weight float64, samplingRate int, overla
 				numRelevant := 0
 				for offY := range samplingRate {
 					for offX := range samplingRate {
-						if isRelevant(overlayImg, topLeftX+offX, topLeftY+offY) {
+						if isWithinOverlay(overlayImg, topLeftX+offX, topLeftY+offY) {
 							_, g, _, _ := getRgba(img, topLeftX+offX, topLeftY+offY)
 							sumValue += int(g)
 							numRelevant++
@@ -182,7 +180,11 @@ func computeFileValues(filename string, weight float64, samplingRate int, overla
 				if numRelevant > 0 {
 					avgValue = float64(sumValue) / float64(numRelevant)
 				}
-				row = append(row, (avgValue/255)*weight)
+				value := avgValue / 255
+				if !isHighGood {
+					value = 1 - value
+				}
+				row = append(row, value*weight)
 			}
 			result[iy] = row
 		}()

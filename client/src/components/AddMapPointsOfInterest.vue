@@ -3,8 +3,14 @@ import { reactive, ref } from 'vue';
 import MapPreview, { type MapPreviewState } from './MapPreview.vue';
 import SelectionsMap from './SelectionsMap.vue';
 import type { PointOfInterestWithId, SubmitPointsOfInterestData, SubmitPointsOfInterestFromCsvData } from '@/types';
+import InputOptions, { type Option } from './InputOptions.vue';
 
 type InputMode = "csv-import" | "select-map";
+
+const inputOptions = [
+  { value: "csv-import", display: "Import CSV File" },
+  { value: "select-map", display: "Select on Map" },
+]
 
 const inputs = reactive({
   tag: "",
@@ -104,22 +110,7 @@ async function submit() {
 
         <hr />
 
-        <div class="input-options">
-          <button
-            class="btn input-option"
-            :class="{ 'active-input-option': inputMode === 'csv-import' }"
-            @click="inputMode = 'csv-import'"
-          >
-            Import CSV File
-          </button>
-          <button
-            class="btn input-option"
-            :class="{ 'active-input-option': inputMode === 'select-map' }"
-            @click="inputMode = 'select-map'"
-          >
-            Select on Map
-          </button>
-        </div>
+        <InputOptions v-model="inputMode" :options="inputOptions" />
 
         <template v-if="inputMode === 'csv-import'">
           <div class="form-field">
@@ -177,36 +168,6 @@ async function submit() {
 
 <style lang="scss" scoped>
 @import "../styles/shared.scss";
-
-.input-options {
-  display: flex;
-  justify-content: space-between;
-  box-shadow: 0 2px 3px #eee;
-}
-
-.input-option {
-  width: 50%;
-  padding: 10px;
-  font-size: 1em;
-  font-weight: 600;
-
-  &:first-child {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-    border-right: 0;
-    box-shadow: none;
-  }
-
-  &:last-child {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    box-shadow: none;
-  }
-}
-
-.active-input-option {
-  background-color: gray;
-}
 
 .selections-map {
   height: 640px;

@@ -6,6 +6,38 @@ import AddMapLayout from './AddMapLayout.vue';
 import type { MapPreviewState } from './MapPreview.vue';
 import CheckMarkIcon from './icons/CheckMarkIcon.vue';
 import InfoIcon from './icons/InfoIcon.vue';
+import InputOptions from './InputOptions.vue';
+import HelloThere from './icons/HelloThere';
+import HelloThereSfc from './icons/HelloThereSfc.vue';
+
+type InputMode = "image-import" | "data-import";
+
+const inputMode = ref<InputMode | null>(null);
+
+const inputOptions = [
+  { value: "image-import", display: "Import Image" },
+  { value: "data-import", display: "Import Data from CSV" },
+]
+
+interface DataImportInputs {
+	geoJsonNameProperty: string;
+	csvNameColumn: string;
+	csvValueColumn: string;
+	lowerBoundThreshold: number | null;
+	upperBoundThreshold: number | null;
+	allowNameMatchingLeniency: boolean;
+	skipMissing: boolean;
+}
+
+const dataImportInputs = reactive<DataImportInputs>({
+	geoJsonNameProperty: "",
+	csvNameColumn: "Name",
+	csvValueColumn: "Value",
+	lowerBoundThreshold: null,
+	upperBoundThreshold: null,
+	allowNameMatchingLeniency: false,
+	skipMissing: false,
+});
 
 type EditingAction = "defineBounds" | "selectLegend"
 interface LegendItemWithId extends LegendItem {
@@ -155,6 +187,22 @@ function selectImage(event: Event) {
   reader.readAsDataURL(file);
 }
 
+let geoJsonFile: File;
+let locationValuesFile: File;
+async function uploadFile(event: Event, file: "geojson" | "location-values") {
+  const elem = event.target as HTMLInputElement;
+  if (!elem.files || elem.files.length > 1) {
+    alert("Unexpectedly not one file selected");
+    return;
+  }
+
+  if (file === "geojson") {
+    geoJsonFile = elem.files[0];
+  } else {
+    locationValuesFile = elem.files[0];
+  }
+}
+
 function addLegendKey() {
   legend.items.push({ id: currLegendId++, color: null, value: null });
 }
@@ -280,6 +328,11 @@ async function submitData() {
 
 <template>
   <AddMapLayout name="Add Choropleth Map Dataset" :map-preview-state="mapPreviewState">
+
+    <HelloThere style="color: red;" />
+    <HelloThereSfc style="color: red;" />
+    <CheckMarkIcon style="color: red;" />
+
     <div class="form-fields choropleth-form-fields">
       <div class="form-field">
         <label for="tag">Tag</label>
@@ -288,164 +341,214 @@ async function submitData() {
 
       <hr />
 
-      <div class="form-field">
-        <label for="map">Choose Map</label>
-        <input type="file" id="map" name="map" accept="image/png" @input="selectImage" />
-      </div>
+      <InputOptions v-model="inputMode" :options="inputOptions" />
 
-      <div v-if="!!imageSelectedSrc" class="define-map-info">
-        <div class="tab-buttons">
-          <button
-            @click="selectedEditingAction = 'defineBounds'"
-            class="tab-button"
-            :class="{ 'active-tab': selectedEditingAction === 'defineBounds' }"
-          >
-            <span>Define Bounds</span>
-            <CheckMarkIcon v-if="completedActions.defineBounds" class="check-mark-icon" />
-          </button>
-
-          <button
-            @click="selectedEditingAction = 'selectLegend'"
-            class="tab-button"
-            :class="{ 'active-tab': selectedEditingAction === 'selectLegend' }"
-          >
-            <span>Define Legend</span>
-            <CheckMarkIcon v-if="completedActions.selectLegend" class="check-mark-icon" />
-          </button>
+      <template v-if="inputMode === 'image-import'">
+        <div class="form-field">
+          <label for="map">Choose Map</label>
+          <input type="file" id="map" name="map" accept="image/png" @input="selectImage" />
         </div>
 
-        <div v-show="selectedEditingAction === 'defineBounds'" class="tab-content">
-          <div class="form-fields">
-            <div class="form-field">
-              <label for="xOffset">Overlay X Offset</label>
-              <input type="number" v-model="overlayData.xOffset" name="xOffset" />
-            </div>
-
-            <div class="form-field">
-              <label for="yOffset">Overlay Y Offset</label>
-              <input type="number" v-model="overlayData.yOffset" name="yOffset" />
-            </div>
-
-            <div class="form-field">
-              <label for="scale">Overlay Scale</label>
-              <input type="number" v-model="overlayData.scale" name="scale" step="any" />
-            </div>
-
-            <div class="info-box">
-              <InfoIcon class="info-icon" />
-              <div>
-                <p>Click and drag overlay to move</p>
-                <p>Shift + Scroll to adjust overlay scale</p>
-              </div>
-            </div>
-
-            <div class="map-container">
-              <div class="map-img-container">
-                <img :src="imageSelectedSrc" ref="ref-img" class="ref-img" />
-
-                <img
-                  class="overlay-img"
-                  src="http://localhost:8080/assets/blackwhite.png"
-                  draggable="false"
-                  :style="{ left: overlayData.xOffset + 'px', top: overlayData.yOffset + 'px', height: overlayData.scale * targetHeight + 'px' }"
-                  @mousedown="startDrag"
-                />
-              </div>
-            </div>
-
-            <button class="btn submit-btn" @click="confirmOverlay">Confirm Overlay Bounds</button>
-          </div>
-        </div>
-        <div v-show="selectedEditingAction === 'selectLegend'" class="tab-content">
-          <div class="form-fields">
-            <h2>Legend Colors</h2>
-
-            <div
-              v-for="legendItem of legend.items"
-              :key="legendItem.id"
-              class="legend-item"
-              :class="{ 'active-legend-item': legendItem.id === selectingColorId }"
+        <div v-if="!!imageSelectedSrc" class="define-map-info">
+          <div class="tab-buttons">
+            <button
+              @click="selectedEditingAction = 'defineBounds'"
+              class="tab-button"
+              :class="{ 'active-tab': selectedEditingAction === 'defineBounds' }"
             >
-              <button class="btn select-color-button" @click="toggleSelectingColor(legendItem)">
-                <span class="select-color-text">
-                  {{ legendItem.id === selectingColorId ? 'Selecting Color' : 'Select Color' }}
-                </span>
-                <span
-                  class="color-preview"
-                  :style="legendItem.color !== null ? { 'background-color': hexColor(legendItem.color) } : { 'border': '1px solid gray' }"
-                >
-                  <span v-if="legendItem.color === null" class="unselected-color-question-mark">
-                    ?
-                  </span>
-                </span>
-              </button>
+              <span>Define Bounds</span>
+              <CheckMarkIcon v-if="completedActions.defineBounds" class="check-mark-icon" />
+            </button>
 
-              <div class="select-color-value">
-                <label for="value">Value</label>
-                <input type="number" name="value" v-model="legendItem.value" />
-                <button
-                  :disabled="legend.items.length === 1"
-                  class="cancel-button"
-                  :class="{ 'disabled-btn': legend.items.length === 1 }"
-                  @click="removeLegendKey(legendItem.id)"
-                >
-                  <span>🗙</span>
-                </button>
+            <button
+              @click="selectedEditingAction = 'selectLegend'"
+              class="tab-button"
+              :class="{ 'active-tab': selectedEditingAction === 'selectLegend' }"
+            >
+              <span>Define Legend</span>
+              <CheckMarkIcon v-if="completedActions.selectLegend" class="check-mark-icon" />
+            </button>
+          </div>
+
+          <div v-show="selectedEditingAction === 'defineBounds'" class="tab-content">
+            <div class="form-fields">
+              <div class="form-field">
+                <label for="xOffset">Overlay X Offset</label>
+                <input type="number" v-model="overlayData.xOffset" name="xOffset" />
               </div>
+
+              <div class="form-field">
+                <label for="yOffset">Overlay Y Offset</label>
+                <input type="number" v-model="overlayData.yOffset" name="yOffset" />
+              </div>
+
+              <div class="form-field">
+                <label for="scale">Overlay Scale</label>
+                <input type="number" v-model="overlayData.scale" name="scale" step="any" />
+              </div>
+
+              <div class="info-box">
+                <InfoIcon class="info-icon" />
+                <div>
+                  <p>Click and drag overlay to move</p>
+                  <p>Shift + Scroll to adjust overlay scale</p>
+                </div>
+              </div>
+
+              <div class="map-container">
+                <div class="map-img-container">
+                  <img :src="imageSelectedSrc" ref="ref-img" class="ref-img" />
+
+                  <img
+                    class="overlay-img"
+                    src="http://localhost:8080/assets/blackwhite.png"
+                    draggable="false"
+                    :style="{ left: overlayData.xOffset + 'px', top: overlayData.yOffset + 'px', height: overlayData.scale * targetHeight + 'px' }"
+                    @mousedown="startDrag"
+                  />
+                </div>
+              </div>
+
+              <button class="btn submit-btn" @click="confirmOverlay">Confirm Overlay Bounds</button>
             </div>
-
-            <button class="btn add-legend-key-button" @click="addLegendKey">Add Legend Key</button>
-
-            <div class="form-field">
-              <label for="magnification-enabled">Enable Magnification</label>
-              <input type="checkbox" v-model="magnificationEnabled" name="magnification-enabled" />
-            </div>
-
-            <div v-if="magnificationEnabled" class="form-field">
-              <label for="magnification-level">Magnification Level</label>
-              <input type="number" step="any" v-model="magnificationLevel" name="magnification-level" />
-            </div>
-
-            <div class="map-container">
-              <canvas
-                ref="ref-canvas"
-                class="ref-canvas"
-                :style="{ 'cursor': selectingColorId !== null ? 'crosshair' : 'auto' }"
-                @click="selectPixel"
-                @mousemove="onCanvasMouseMove"
-                @wheel="onCanvasWheel"
-              ></canvas>
+          </div>
+          <div v-show="selectedEditingAction === 'selectLegend'" class="tab-content">
+            <div class="form-fields">
+              <h2>Legend Colors</h2>
 
               <div
-                v-if="selectingColorId !== null && magnificationEnabled"
-                class="magnifying-glass"
-                alt="Magnifying glass"
-                :style="{
-                  top: `${mouseOverPosition.y - MAGNIFIER_SIZE / 2}px`,
-                  left: `${mouseOverPosition.x - MAGNIFIER_SIZE / 2}px`,
-                  width: `${MAGNIFIER_SIZE}px`,
-                  height: `${MAGNIFIER_SIZE}px`,
-                  backgroundImage: `url(${imageSelectedSrc})`,
-                  backgroundSize: `${640 * magnificationLevel}px ${640 * magnificationLevel}px`,
-                  backgroundPosition: `-${mouseOverPosition.x * magnificationLevel - MAGNIFIER_SIZE / 2 + 2}px -${mouseOverPosition.y * magnificationLevel - MAGNIFIER_SIZE / 2 + 2}px`
-                }"
-              ></div>
-            </div>
+                v-for="legendItem of legend.items"
+                :key="legendItem.id"
+                class="legend-item"
+                :class="{ 'active-legend-item': legendItem.id === selectingColorId }"
+              >
+                <button class="btn select-color-button" @click="toggleSelectingColor(legendItem)">
+                  <span class="select-color-text">
+                    {{ legendItem.id === selectingColorId ? 'Selecting Color' : 'Select Color' }}
+                  </span>
+                  <span
+                    class="color-preview"
+                    :style="legendItem.color !== null ? { 'background-color': hexColor(legendItem.color) } : { 'border': '1px solid gray' }"
+                  >
+                    <span v-if="legendItem.color === null" class="unselected-color-question-mark">
+                      ?
+                    </span>
+                  </span>
+                </button>
 
-            <div class="form-field">
-              <label for="colorTolerance">Color Tolerance</label>
-              <input type="number" v-model="legend.colorTolerance" name="colorTolerance" />
-            </div>
+                <div class="select-color-value">
+                  <label for="value">Value</label>
+                  <input type="number" name="value" v-model="legendItem.value" />
+                  <button
+                    :disabled="legend.items.length === 1"
+                    class="cancel-button"
+                    :class="{ 'disabled-btn': legend.items.length === 1 }"
+                    @click="removeLegendKey(legendItem.id)"
+                  >
+                    <span>🗙</span>
+                  </button>
+                </div>
+              </div>
 
-            <div class="form-field">
-              <label for="borderTolerance">Border Tolerance</label>
-              <input type="number" v-model="legend.borderTolerance" name="borderTolerance" />
-            </div>
+              <button class="btn add-legend-key-button" @click="addLegendKey">Add Legend Key</button>
 
-            <button class="btn submit-btn" @click="confirmLegend">Confirm Legend</button>
+              <div class="form-field">
+                <label for="magnification-enabled">Enable Magnification</label>
+                <input type="checkbox" v-model="magnificationEnabled" name="magnification-enabled" />
+              </div>
+
+              <div v-if="magnificationEnabled" class="form-field">
+                <label for="magnification-level">Magnification Level</label>
+                <input type="number" step="any" v-model="magnificationLevel" name="magnification-level" />
+              </div>
+
+              <div class="map-container">
+                <canvas
+                  ref="ref-canvas"
+                  class="ref-canvas"
+                  :style="{ 'cursor': selectingColorId !== null ? 'crosshair' : 'auto' }"
+                  @click="selectPixel"
+                  @mousemove="onCanvasMouseMove"
+                  @wheel="onCanvasWheel"
+                ></canvas>
+
+                <div
+                  v-if="selectingColorId !== null && magnificationEnabled"
+                  class="magnifying-glass"
+                  alt="Magnifying glass"
+                  :style="{
+                    top: `${mouseOverPosition.y - MAGNIFIER_SIZE / 2}px`,
+                    left: `${mouseOverPosition.x - MAGNIFIER_SIZE / 2}px`,
+                    width: `${MAGNIFIER_SIZE}px`,
+                    height: `${MAGNIFIER_SIZE}px`,
+                    backgroundImage: `url(${imageSelectedSrc})`,
+                    backgroundSize: `${640 * magnificationLevel}px ${640 * magnificationLevel}px`,
+                    backgroundPosition: `-${mouseOverPosition.x * magnificationLevel - MAGNIFIER_SIZE / 2 + 2}px -${mouseOverPosition.y * magnificationLevel - MAGNIFIER_SIZE / 2 + 2}px`
+                  }"
+                ></div>
+              </div>
+
+              <div class="form-field">
+                <label for="colorTolerance">Color Tolerance</label>
+                <input type="number" v-model="legend.colorTolerance" name="colorTolerance" />
+              </div>
+
+              <div class="form-field">
+                <label for="borderTolerance">Border Tolerance</label>
+                <input type="number" v-model="legend.borderTolerance" name="borderTolerance" />
+              </div>
+
+              <button class="btn submit-btn" @click="confirmLegend">Confirm Legend</button>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
+      <template v-else-if="inputMode === 'data-import'">
+        <div class="form-field">
+          <label for="geojson">GeoJSON Geography Definition</label>
+          <input type="file" name="geojson" accept=".json,.geojson" @input="uploadFile($event, 'geojson')" />
+        </div>
+
+        <div class="form-field">
+          <label for="location-values">Location Values CSV</label>
+          <input type="file" name="location-values" accept=".csv" @input="uploadFile($event, 'location-values')" />
+        </div>
+
+        <div class="form-field">
+          <label for="geojson-name-property">GeoJSON Name Property</label>
+          <input type="text" v-model="dataImportInputs.geoJsonNameProperty" name="geojson-name-property" />
+        </div>
+
+        <div class="form-field">
+          <label for="csv-name-column">Location CSV Name Column</label>
+          <input type="text" v-model="dataImportInputs.csvNameColumn" name="csv-name-column" />
+        </div>
+
+        <div class="form-field">
+          <label for="csv-value-column">GeoJSON Name Property</label>
+          <input type="text" v-model="dataImportInputs.csvValueColumn" name="csv-value-column" />
+        </div>
+
+        <div class="form-field">
+          <label for="lower-bound-threshold">Lower Bound Threshold</label>
+          <input type="number" step="any" v-model="dataImportInputs.lowerBoundThreshold" name="lower-bound-threshold" />
+        </div>
+
+        <div class="form-field">
+          <label for="upper-bound-threshold">Upper Bound Threshold</label>
+          <input type="number" step="any" v-model="dataImportInputs.upperBoundThreshold" name="upper-bound-threshold" />
+        </div>
+
+        <div class="form-field">
+          <label for="allow-name-matching-leniency">Allow Name Leniency</label>
+          <input type="checkbox" v-model="dataImportInputs.allowNameMatchingLeniency" name="allow-name-matching-leniency" />
+        </div>
+
+        <div class="form-field">
+          <label for="skip-missing-values">Skip Missing Values</label>
+          <input type="checkbox" v-model="dataImportInputs.skipMissing" name="skip-missing-values" />
+        </div>
+      </template>
     </div>
   </AddMapLayout>
 </template>

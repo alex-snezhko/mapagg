@@ -40,6 +40,17 @@ type SubmitChoroplethMapData struct {
 	Legend                 []LegendItem `json:"legend"`
 }
 
+type SubmitChoroplethMapFromCsvData struct {
+	Tag                       string  `json:"tag"`
+	GeoJsonNameProperty       string  `json:"geoJsonNameProperty"`
+	CsvNameColumn             string  `json:"csvNameColumn"`
+	CsvValueColumn            string  `json:"csvValueColumn"`
+	LowerBoundThreshold       float64 `json:"lowerBoundThreshold"`
+	UpperBoundThreshold       float64 `json:"upperBoundThreshold"`
+	AllowNameMatchingLeniency bool    `json:"allowNameMatchingLeniency"`
+	SkipMissing               bool    `json:"skipMissing"`
+}
+
 type SubmitFileData struct {
 	Data string                `form:"data" binding:"required"`
 	File *multipart.FileHeader `form:"file" binding:"required"`
@@ -71,8 +82,9 @@ type ConfirmMapData struct {
 }
 
 type AggregateDataTagInfo struct {
-	Tag    string  `json:"tag"`
-	Weight float64 `json:"weight"`
+	Tag        string  `json:"tag"`
+	IsHighGood bool    `json:"isHighGood"`
+	Weight     float64 `json:"weight"`
 }
 
 type AggregateDataRequest struct {
@@ -128,6 +140,61 @@ func main() {
 		}
 
 		newImg, err := submitChoroplethMap(file, submitMapData)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, "Oops failed "+err.Error())
+			return
+		}
+
+		tmpFilePath, err := writeTmpFile(newImg, submitMapData.Tag)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, "Oops failed "+err.Error())
+			return
+		}
+
+		c.File(tmpFilePath)
+	})
+
+	r.GET("/submit-choropleth-map-from-csv", func(c *gin.Context) {
+		// form, err := c.MultipartForm()
+		// if err != nil {
+		// 	c.JSON(http.StatusBadRequest, "Oops")
+		// 	return
+		// }
+
+		// fileHeader := form.File["file"][0]
+		// data := form.Value["data"][0]
+
+		// file, err := fileHeader.Open()
+		// if err != nil {
+		// 	c.JSON(http.StatusBadRequest, "Oops open file")
+		// 	return
+		// }
+
+		// defer file.Close()
+
+		var submitMapData SubmitChoroplethMapFromCsvData
+		// err = json.Unmarshal([]byte(data), &submitMapData)
+		// if err != nil {
+		// 	c.JSON(http.StatusBadRequest, "Oops unmarshal "+err.Error())
+		// 	return
+		// }
+
+		// submitMapData = SubmitChoroplethMapFromCsvData{NameProperty: "name", LowerBoundThreshold: 400000, UpperBoundThreshold: 1000000, Tag: "costtest", AllowNameMatchingLeniency: true}
+		submitMapData = SubmitChoroplethMapFromCsvData{GeoJsonNameProperty: "neighborhood", LowerBoundThreshold: 400000, UpperBoundThreshold: 1200000, Tag: "costtest3", AllowNameMatchingLeniency: true, CsvNameColumn: "Neighborhood", CsvValueColumn: "Cost", SkipMissing: true}
+
+		geoJsonFile, err := os.Open("nyc-neigh.geojson")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, "Oops open file")
+			return
+		}
+
+		locationCsvFile, err := os.Open("nyc-zhvi-new.csv")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, "Oops open file")
+			return
+		}
+
+		newImg, err := submitChoroplethMapFromCsv(geoJsonFile, locationCsvFile, submitMapData)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, "Oops failed "+err.Error())
 			return
@@ -287,7 +354,7 @@ func writeTmpFile(img *image.RGBA, tag string) (string, error) {
 	return tmpFilepath, nil
 }
 
-func confirmMap(submittedFile multipart.File, data ConfirmMapData) error {
+func confirmMap(submittedFile io.Reader, data ConfirmMapData) error {
 	newFile, err := os.Create(fmt.Sprintf("./database/maps/%s.png", data.Tag))
 	if err != nil {
 		return err
