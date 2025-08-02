@@ -7,8 +7,6 @@ import type { MapPreviewState } from './MapPreview.vue';
 import CheckMarkIcon from './icons/CheckMarkIcon.vue';
 import InfoIcon from './icons/InfoIcon.vue';
 import InputOptions from './InputOptions.vue';
-import HelloThere from './icons/HelloThere';
-import HelloThereSfc from './icons/HelloThereSfc.vue';
 
 type InputMode = "image-import" | "data-import";
 
@@ -328,11 +326,6 @@ async function submitData() {
 
 <template>
   <AddMapLayout name="Add Choropleth Map Dataset" :map-preview-state="mapPreviewState">
-
-    <HelloThere style="color: red;" />
-    <HelloThereSfc style="color: red;" />
-    <CheckMarkIcon style="color: red;" />
-
     <div class="form-fields choropleth-form-fields">
       <div class="form-field">
         <label for="tag">Tag</label>
